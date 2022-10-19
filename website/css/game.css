@@ -1,0 +1,82 @@
+@charset "UTF-8";
+
+* {
+	-moz-box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	box-sizing: border-box;
+}
+
+html {
+	height: 100%;
+}
+
+body {
+	margin: 0;
+	background-color: #F5F5FF;
+	font-family: Helvetica, Arial, FreeSans, sans-serif;
+	color: #454545;
+	font-size: 10px;
+	height: 100%;
+}
+
+.container{
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	position: relative;
+	top: 0px; left: 0px;
+}
+
+.inner_container{
+	height: 100%;
+	width: 100%;
+	position: absolute;
+}
+
+#inner_portlet_container{
+	top: 20px;
+	bottom: 20px;
+	left: 20px;
+	right: 20px;
+	position: absolute;
+}
+
+canvas {
+	width: 100%;
+	height: 100%;
+}
+
+.ui-widget-header .ui-icon { float: right; }
+
+.portlet-content{
+	width: 100%;
+	overflow: hidden;
+	top: 50px;
+	bottom: 0px;
+	float: bottom;
+	position: relative;
+}
+
+.chat-box-container{
+	top: 0px;
+	bottom: 24px;
+	width: 100%;
+	overflow: hidden;
+	float: top;
+}
+
+.chat#table{
+	width: 100%;
+	height: 100%;
+}
+
+.chat-box{
+	border: 1px solid white;
+	width: 100%;
+	resize: none;
+}
+
+.chat_input{
+	float: bottom;
+	width: 100%;
+}

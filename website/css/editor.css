@@ -1,0 +1,150 @@
+html {
+  /*height: 100%;*/
+}
+
+body {
+  margin: 0;
+  font-family: Helvetica, Arial, FreeSans, sans-serif;
+  font-size: 16px;
+  /*height: 100%;*/
+}
+
+.main{
+  margin: 0;
+  height: 100vh;
+  width: 100%;
+  float: right;
+  background-color: black;
+}
+
+.sidebar{
+  /*position: static;*/
+  height: 100vh;
+  width: 20%;
+  overflow: hidden;
+  float: right;
+}
+
+canvas {
+  width: 100%;
+  height: 100%;
+  /*z-index: 5;*/
+}
+
+.widget {
+  /*width:100px;
+  height:100px;
+  left: 12px;
+  top: 12px;*/
+  background-color:#666;
+  color:white;
+  padding: 0px 0px;
+  position:absolute; /* important (all position that's not 'static') */
+  opacity: 0.5;
+  z-index: 5;
+  /*resize: both;*/
+  overflow: auto;
+  display: block;
+}
+
+.widget-title{
+  height: 15px;
+  /*width:100%;*/
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: 2px;
+  background-color:white;
+  cursor:move;
+  color:black;
+  opacity: 1.0;
+  font-size: 12px;
+}
+
+.widget-handle{
+  position: absolute;
+  /*background-color: red;*/
+  display: block;
+}
+
+.widget-east-handle{
+  height: 100%;
+  width: 2px;
+  right: 0px;
+  float: right;
+  background-color: red;
+  cursor: e-resize;
+}
+
+.widget-west-handle{
+  height: 100%;
+  width: 2px;
+  left: 0px;
+  float: left;
+  background-color: red;
+  cursor: w-resize;
+}
+
+.widget-north-handle{
+  height: 2px;
+  width: 100%;
+  top: 0px;
+  background-color: green;
+  cursor: n-resize;
+}
+
+.widget-south-handle{
+  height: 2px;
+  width: 100%;
+  bottom: 0px;
+  background-color: green;
+  cursor: s-resize;
+}
+
+.widget-content {
+  position: absolute;
+  top: 18px;
+  bottom: 4px;
+  left: 4px;
+  right: 4px;
+  background-color: white;
+  color: black;
+  /*z-index: 3;*/
+  overflow: auto;
+}
+
+.button {
+  position: relative;
+  margin: 1px 1px 1px 1px;
+  padding: 1px 1px 1px 1px;
+  border: solid 1px red;
+  background-color: white;
+  color: black;
+  cursor: pointer;
+  display: inline-block;
+  height: auto;
+  font-size: 2em;
+}
+.button:hover{
+  background-color: black;
+  color: white;
+}
+.button:active{
+  color: grey;
+
+}
+/* chat window */
+.websocket{
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  right: 0px;
+  bottom: 20px;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  font-size: 12px;
+}
+input.ws{
+  position: absolute;
+  bottom: 0px;
+}
