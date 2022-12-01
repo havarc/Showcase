@@ -5,7 +5,7 @@
 .csr
 
 # omit the server
-/myServer
+/myServer/
 package.json
 
 # Logs
