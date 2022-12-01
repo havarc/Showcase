@@ -9,8 +9,10 @@ var logger = require('morgan');
 const http = require('http')
 const https = require('https')
 
-var key  = fs.readFileSync(`${__dirname}/sslcert/localhost.decrypted.key`, 'utf8');
-var cert = fs.readFileSync(`${__dirname}/sslcert/localhost.crt`, 'utf8');
+// var key  = fs.readFileSync(`${__dirname}/sslcert/localhost.decrypted.key`, 'utf8');
+// var cert = fs.readFileSync(`${__dirname}/sslcert/localhost.crt`, 'utf8');
+var key  = fs.readFileSync(`/home/eisfuerst/Workspace/demo-site/myServer/sslcert/localhost.decrypted.key`, 'utf8');
+var cert = fs.readFileSync(`/home/eisfuerst/Workspace/demo-site/myServer/sslcert/localhost.crt`, 'utf8');
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
@@ -28,13 +30,14 @@ var app = express();
 // app.set('views', path.join(__dirname, 'views'));
 // app.set('view engine', 'pug');
 
-// app.use(logger('dev'));
-// app.use(express.json());
+app.use(logger('dev'));
+app.use(express.json());
 // app.use(express.urlencoded({ extended: false }));
 // app.use(cookieParser());
 // app.use(express.static(path.join(__dirname, 'public')));
 // app.use(express.static('/Workspace/WebGL/website'));
-app.use(express.static(__dirname+'/../website'));
+// app.use(express.static(__dirname+'/../website'));
+app.use(express.static('/home/eisfuerst/Workspace/demo-site/website'));
 
 // app.use('/', indexRouter);
 // app.use('/users', usersRouter);

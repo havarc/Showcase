@@ -3,7 +3,10 @@
 .pem
 .crt
 .csr
-/myServer/sslcert
+
+# omit the server
+/myServer
+package.json
 
 # Logs
 logs
