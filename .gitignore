@@ -6,7 +6,14 @@
 
 # omit the server
 myServer/
+Greenlock/
 package.json
+
+# experimental shader files
+shaders/tri_fs.c
+shaders/tri_vs.c
+shaders/trix_fs.c
+shaders/trix_vs.c
 
 # Logs
 logs

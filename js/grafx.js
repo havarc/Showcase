@@ -1,16 +1,24 @@
-var gl_canvas, gl;
+"use strict";
 
-var degtorad = Math.PI / 180;
+const degtorad = Math.PI / 180;
 
-var main_program; // main shader program
-var line_program; // showing lines
+// var n = 127;
 
-var old_ms = 0;
+/**
+ * @module: rendering
+ * @exports: camera prototype
+ * 
+ * puts the final images together
+ */
+const grafx = new function(){
+	let gl_canvas, gl;
+	let main_program;
+	let text_program;
+	let line_program;
+	let old_ms = 0;
+	let sdcnt = 3;
+	let lod = 0; // current level of detail
 
-var n = 127;
-
-var grafx = new function(){
-	"use strict";
 	this.init = function(){
 		gl_canvas = document.getElementById('local-canvas');
 		console.log('starting webgl');
@@ -18,8 +26,9 @@ var grafx = new function(){
 		gl = WebGLUtils.setupWebGL(gl_canvas);
 		if (!gl) {alert("Can't get WebGL"); return;}
 		// request main shader
-		main_program = shader_manager.request_shader('main', gl);
-		line_program = shader_manager.request_shader('line', gl);
+		main_program = shader_manager.request_shader('main');
+		text_program = shader_manager.request_shader('text');
+		line_program = shader_manager.request_shader('line');
 		// setup gl
 
 		// gl.enable(gl.DEPTH_TEST);
@@ -39,11 +48,253 @@ var grafx = new function(){
 		draw_scene();
 	};
 
+	this.get_gl = function(){return gl;};
+
+	this.resize_canvas = function(){
+		var width = gl_canvas.width = gl_canvas.clientWidth;
+		var height = gl_canvas.height = gl_canvas.clientHeight;
+		gl.viewport(0, 0, width, height);
+		// TODO get cam from scene_manager
+		// TODO: move to rendering
+		scene_manager.change_viewport(width, height);
+	};
+
+	// generates a texture buffer for the texture-manager to manage
+	this.create_texture_buffer= function(src){
+		let texture = gl.createTexture();
+		let image = new Image();
+		image.onload = () => {
+			console.log('image received: '+src)
+
+			gl.activeTexture(gl.TEXTURE0);
+			gl.bindTexture(gl.TEXTURE_2D, texture);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+			// gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, image);
+			gl.generateMipmap(gl.TEXTURE_2D);
+
+			//turn off mips for now and clamp to edge
+			// gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+			// gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+			// gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+		}
+		image.src = src;
+
+  		return texture;
+	}
+
+	// model_node can call this to get buffers for their data
+	// returns the render-function for colored meshes
+	this.generate_colored_render_function = function(mesh){
+		console.log(mesh);
+		let vertex_buffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
+		gl.bufferData(gl.ARRAY_BUFFER, mesh.vertex_data, gl.STATIC_DRAW);
+		let vertex_count = mesh.vertex_data.length/3;
+		
+		let normal_buffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
+		gl.bufferData(gl.ARRAY_BUFFER, mesh.normal_data, gl.STATIC_DRAW);
+		
+		let color_buffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, color_buffer);
+		gl.bufferData(gl.ARRAY_BUFFER, mesh.color_data, gl.STATIC_DRAW);
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, null);
+		gl.bindVertexArray(null);
+
+		if(mesh.triangle_index){
+			let lod_buffer = [];
+			let lod_edge_buffer = [];
+			let triangle_count = [];
+			let line_count = [];
+
+			for(let i = 0; i <= sdcnt; i++){
+				// if(i)	mesh = subdivide(mesh, i);
+				// create subsequent lod
+				lod_buffer[i] = gl.createBuffer();
+				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[i]);
+				gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,mesh.triangle_index[i], gl.STATIC_DRAW);
+				triangle_count[i] = mesh.triangle_index[i].length;
+
+				lod_edge_buffer[i] = gl.createBuffer();
+				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_edge_buffer[i]);
+				gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.edge_index[i], gl.STATIC_DRAW);
+				line_count[i] = mesh.edge_index[i].length;
+
+				// mdata_n.triangle_count[i] = 0;
+				// normals are reused
+				// mdata_n.line_count[i] = mesh.vertex_data.length/3*2;
+			}
+		
+			let trivao = [];
+			for(let i = 0; i <= sdcnt; i++){
+				// create the Vertex Array Object
+				let vao = gl.createVertexArray();
+				gl.bindVertexArray(vao);
+
+				gl.enableVertexAttribArray(main_program.vertex);
+				gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
+				gl.vertexAttribPointer(main_program.vertex_data, 3, gl.FLOAT, false, 0, 0);
+
+				if(Number.isInteger(main_program.normal_data)){
+					gl.enableVertexAttribArray(main_program.normal_data);
+					gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
+					gl.vertexAttribPointer(main_program.normal_data, 3, gl.FLOAT, false, 0, 0);
+				}
+
+				if(Number.isInteger(main_program.color_data)){
+					gl.enableVertexAttribArray(main_program.color_data);
+					gl.bindBuffer(gl.ARRAY_BUFFER, color_buffer);
+					gl.vertexAttribPointer(main_program.color_data, 4, gl.FLOAT, false, 0, 0);
+				}
+
+				// gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[lod]);
+
+				trivao[i] = vao;
+				gl.bindVertexArray(null);
+			}
+
+			return function(lod = 0){
+				gl.bindVertexArray(trivao[lod]);
+				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[lod]);
+
+				// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.vertex_buffer);
+				// gl.vertexAttribPointer(main_program.vertex, 3, gl.FLOAT, false, 0, 0);
+		
+				// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.normal_buffer);
+				// gl.vertexAttribPointer(main_program.normal, 3, gl.FLOAT, false, 0, 0);
+		
+				// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.color_buffer);
+				// gl.vertexAttribPointer(main_program.color, 4, gl.FLOAT, false, 0, 0);
+		
+				// gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._mdata.lod_buffer[lod]);
+		
+				gl.uniform3fv(main_program.position, this.parent_node.gpos);
+				gl.uniform4fv(main_program.orientation, this.parent_node.gorn);
+				gl.uniformMatrix4fv(main_program.mvMatrix, false, this.get_transform());
+				// console.log(this.get_transform())
+
+				// TODO: use drawRangeElements for lod
+				gl.drawElements(gl.TRIANGLES, triangle_count[lod], gl.UNSIGNED_SHORT, 0);
+				gl.bindVertexArray(null);
+			};
+		}
+	}
+
+	// model_node can call this to get buffers for their data
+	// returns the render-function for textured meshes
+	this.generate_textured_render_function = function(mesh, texture){
+		console.log(mesh);
+		let vertex_buffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
+		gl.bufferData(gl.ARRAY_BUFFER, mesh.vertex_data, gl.STATIC_DRAW);
+		let vertex_count = mesh.vertex_data.length/3;
+		
+		let normal_buffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
+		gl.bufferData(gl.ARRAY_BUFFER, mesh.normal_data, gl.STATIC_DRAW);
+		
+		let texture_buffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, texture_buffer);
+		gl.bufferData(gl.ARRAY_BUFFER, mesh.texture_data, gl.STATIC_DRAW);
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, null);
+		gl.bindVertexArray(null);
+
+		if(mesh.triangle_index){
+			let lod_buffer = [];
+			let lod_edge_buffer = [];
+			let triangle_count = [];
+			let line_count = [];
+
+			for(let i = 0; i <= sdcnt; i++){
+				// if(i)	mesh = subdivide(mesh, i);
+				// create subsequent lod
+				lod_buffer[i] = gl.createBuffer();
+				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[i]);
+				gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,mesh.triangle_index[i], gl.STATIC_DRAW);
+				triangle_count[i] = mesh.triangle_index[i].length;
+
+				lod_edge_buffer[i] = gl.createBuffer();
+				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_edge_buffer[i]);
+				gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.edge_index[i], gl.STATIC_DRAW);
+				line_count[i] = mesh.edge_index[i].length;
+
+				// mdata_n.triangle_count[i] = 0;
+				// normals are reused
+				// mdata_n.line_count[i] = mesh.vertex_data.length/3*2;
+			}
+		
+			let trivao = [];
+			for(let i = 0; i <= sdcnt; i++){
+				// create the Vertex Array Object
+				let vao = gl.createVertexArray();
+				gl.bindVertexArray(vao);
+
+				gl.enableVertexAttribArray(text_program.vertex);
+				gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
+				gl.vertexAttribPointer(text_program.vertex_data, 3, gl.FLOAT, false, 0, 0);
+
+				// check if the data is used in the sahder
+				if(Number.isInteger(text_program.normal_data)){
+					gl.enableVertexAttribArray(text_program.normal_data);
+					gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
+					gl.vertexAttribPointer(text_program.normal_data, 3, gl.FLOAT, false, 0, 0);
+				}
+
+				if(Number.isInteger(text_program.texture_data)){
+					gl.enableVertexAttribArray(text_program.texture_data);
+					gl.bindBuffer(gl.ARRAY_BUFFER, texture_buffer);
+					gl.vertexAttribPointer(text_program.texture_data, 2, gl.FLOAT, false, 0, 0);
+				}
+
+				// gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[lod]);
+
+				trivao[i] = vao;
+				gl.bindVertexArray(null);
+			}
+
+			return function(lod = 0){
+				gl.bindVertexArray(trivao[lod]);
+				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[lod]);
+
+				// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.vertex_buffer);
+				// gl.vertexAttribPointer(text_program.vertex, 3, gl.FLOAT, false, 0, 0);
+		
+				// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.normal_buffer);
+				// gl.vertexAttribPointer(text_program.normal, 3, gl.FLOAT, false, 0, 0);
+		
+				// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.color_buffer);
+				// gl.vertexAttribPointer(text_program.color, 4, gl.FLOAT, false, 0, 0);
+		
+				// gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._mdata.lod_buffer[lod]);
+		
+				gl.uniform3fv(text_program.position, this.parent_node.gpos);
+				gl.uniform4fv(text_program.orientation, this.parent_node.gorn);
+				gl.uniformMatrix4fv(text_program.mvMatrix, false, this.get_transform());
+
+				gl.activeTexture(gl.TEXTURE0);
+				gl.bindTexture(gl.TEXTURE_2D, texture);
+				gl.uniform1i(text_program.u_texture, 0)
+						// console.log(this.get_transform())
+
+				// TODO: use drawRangeElements for lod
+				gl.drawElements(gl.TRIANGLES, triangle_count[lod], gl.UNSIGNED_SHORT, 0);
+				gl.bindVertexArray(null);
+			};
+		}
+
+	}
+
+	// -- lod interface --
+	this.lod_up = function(){lod = Math.min(sdcnt, lod+1);console.log(lod);};
+	this.lod_down = function(){lod = Math.max(0, lod-1);console.log(lod);};
 
 	// -- camera prototype --
-	var cproto = function(args){
+	let cproto = function(args){
 		// initialize this object
-		trajectory_manager.generate_proto.call(this, args);
+		// trajectory_manager.generate_proto.call(this, args);
+		args.prn && (this.parent_node = args.prn) && this.parent_node.add_child(this);
 		this.scene_head = args.scene_head || {};
 		this.target = args.target || {};
 		this.up = args.up || [0,1,0];
@@ -68,25 +319,35 @@ var grafx = new function(){
 
 
 
-		this.attach_visible_object = function(object){
-			visible_objects.push(object);
-		};
+		// this.attach_visible_object = function(object){
+		// 	visible_objects.push(object);
+		// };
 
-		this.attach_light = function(light){
-			lights.push(light);
-		};
+		// this.attach_light = function(light){
+		// 	lights.push(light);
+		// };
 	}
+	
 	cproto.prototype.is_camera_node = true;
+	cproto.prototype.get_transform = function(){
+		return this.parent_node.get_transform();
+	};
+	cproto.prototype.get_local_transform = function(){
+		return [1.0, 0.0,0.0,0.0,
+		0.0,1.0,0.0,0.0,
+		0.0,0.0,1.0,0.0,
+		0.0,0.0,0.0,1.0];
+	};
 
 	//*/
 	// set this objects prototype
-	cproto.prototype = Object.create(trajectory_manager.generate_proto.prototype);
+	// cproto.prototype = Object.create(trajectory_manager.generate_proto.prototype);
 
 	cproto.prototype.render = function(){
-		if(this.get_transform()[15] == -1) // found myself marked for removal
+		if(this.parent_node.get_transform()[15] == -1) // found my parent marked for removal
 		{
 			// ----- camera panic -----
-			// called when I find myself marked for removal during rendering
+			// called when I find my parent marked for removal during rendering
 			// TODO: check if I even have a render target, if not then drop myself
 			console.log('camera panic!');
 			var pn = this.parent_node;
@@ -103,26 +364,43 @@ var grafx = new function(){
 		}
 
 		// TODO use program by model
-		gl.useProgram(main_program);
+		if(0){
+			gl.useProgram(main_program);
+			gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+			// load matrices
+			// TODO use uniform buffer object
+			gl.uniformMatrix4fv(main_program.rtMatrix, false, this.get_transform());
+			gl.uniformMatrix4fv(main_program.vpMatrix, false, this.projection);
+			//-- static diffuse color --
+			// Set the color to use
+			// gl.uniform4fv(main_program.u_color, [0.2, 1, 0.2, 0]); // green
+		
+			// set the light direction.
+			gl.uniform3fv(main_program.u_reverseLightDirection, [0.5, -0.7, -1]);
+		}else{
+			gl.useProgram(text_program);
+			gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-		// load matrices
-		// TODO use uniform buffer object
-		gl.uniformMatrix4fv(main_program.rtMatrix, false, this.get_transform());
-		gl.uniformMatrix4fv(main_program.vpMatrix, false, this.projection);
-		//-- static diffuse color --
-		// Set the color to use
-		gl.uniform4fv(main_program.u_color, [0.8, 1, 0.2, 0]); // green
-	
-		// set the light direction.
-		gl.uniform3fv(main_program.u_reverseLightDirection, [0.5, -0.7, -1]);
+			// load matrices
+			// TODO use uniform buffer object
+			gl.uniformMatrix4fv(text_program.rtMatrix, false, this.get_transform());
+			gl.uniformMatrix4fv(text_program.vpMatrix, false, this.projection);
+			//-- static diffuse color --
+			// Set the color to use
+			// gl.uniform4fv(text_program.u_color, [0.2, 1, 0.2, 0]); // green
+		
+			// set the light direction.
+			gl.uniform3fv(text_program.u_reverseLightDirection, [0.5, -0.7, -1]);
+		}
 
 
 
 		//TODO: cull objects outside of view
+		// ! 23-03-03 render needs access to parent
 		this.scene_head.children.forEach(function(ch){
-			ch.draw();
+			ch.is_model_node && ch.draw(lod)
+			// ch.is_model_node && ch._mdata.render(0)
 		});
 
 		/*
@@ -245,27 +523,29 @@ var grafx = new function(){
 
 	// export
 	this.generate_proto = cproto;
+
+	// main frame call
+	// TODO: start only after all is ready
+	function draw_scene(){
+		// return
+		// console.log("rendering");
+		window.requestAnimFrame(draw_scene, gl_canvas);
+		// if(!main_program.ready){
+		// 	gl.flush(); return; }
+
+		scene_manager.render();
+
+		// end scene
+		gl.flush();
+
+		// move things
+		let d = new Date();
+		let new_ms = d.getMilliseconds();
+		trajectory_manager.cycle(1000*(new_ms < old_ms) + new_ms - old_ms);
+		old_ms = new_ms;
+	}
+
 }();
 
-// main frame call
-// TODO: start only after all is ready
-function draw_scene(){
-	// return
-	// console.log("rendering");
-	window.requestAnimFrame(draw_scene, gl_canvas);
-	// if(!main_program.ready){
-	// 	gl.flush(); return; }
-
-	scene_manager.render();
-
-	// end scene
-	gl.flush();
-
-	// move things
-	var d = new Date();
-	var new_ms = d.getMilliseconds();
-	trajectory_manager.cycle(1000*(new_ms < old_ms) + new_ms - old_ms);
-	old_ms = new_ms;
-}
 
 

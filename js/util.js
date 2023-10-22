@@ -1,3 +1,4 @@
+"use strict";
 // js utilities
 
 // get a reference from a string
@@ -11,11 +12,11 @@ function str2ref(str){
 // --- randomizer ---
 function Randy(seed){
 	// http://stackoverflow.com/questions/521295/javascript-random-seeds
-	var modifier = 123456789;
-	var self = {};
+	let modifier = 123456789;
+	let self = {};
 	self.rand = function(){
-		var mz = modifier;
-		var mw = seed;
+		let mz = modifier;
+		let mw = seed;
 
 		// The 16 least significant bits are multiplied by a constant
 		// and then added to the 16 most significant bits. 32 bits result.
@@ -25,7 +26,7 @@ function Randy(seed){
 		modifier = mz;
 		seed = mw;
 
-		var x = (((mz << 16) + mw) & 0xffffffff) / 0x100000000;
+		let x = (((mz << 16) + mw) & 0xffffffff) / 0x100000000;
 		//return 0.5 + x;
 		return x;
 	};
@@ -35,10 +36,10 @@ function Randy(seed){
 // --- cookies ---
 // deprecated
 // localStorage is used instead, see settings
-const cookie_manager = function(){
+const cookie_manager = new function(){
 	this.getCookie = function(c_name){
-		var c_value = document.cookie;
-		var c_start = c_value.indexOf(" " + c_name + "=");
+		let c_value = document.cookie;
+		let c_start = c_value.indexOf(" " + c_name + "=");
 		if (c_start == -1){
 			c_start = c_value.indexOf(c_name + "=");
 		}
@@ -46,11 +47,12 @@ const cookie_manager = function(){
 			c_value = null;
 		} else {
 			c_start = c_value.indexOf("=", c_start) + 1;
-			var c_end = c_value.indexOf(";", c_start);
+			let c_end = c_value.indexOf(";", c_start);
 			if (c_end == -1) {
 				c_end = c_value.length;
 			}
-			c_value = unescape(c_value.substring(c_start,c_end));
+			// c_value = unescape(c_value.substring(c_start,c_end));
+			c_value = decodeURIComponent(c_value.substring(c_start,c_end));
 		}
 		return c_value;
 	};
@@ -59,15 +61,16 @@ const cookie_manager = function(){
 	this.setCookie = function(c_name, value, exdays){
 		// never expire by default (3y)
 		// exdays = exdays || 1000;
-		var exdate=new Date();
+		let exdate=new Date();
 		exdate.setDate(exdate.getDate() + exdays);
-		var c_value=escape(value) + ((!exdays) ? "" : "; expires="+exdate.toUTCString());
+		// let c_value=escape(value) + ((!exdays) ? "" : "; expires="+exdate.toUTCString());
+		let c_value=encodeURIComponent(value) + ((!exdays) ? "" : "; expires="+exdate.toUTCString());
 		console.log(exdays);
 		document.cookie=c_name + "=" + c_value;
 	};
 
 	this.checkCookie = function(){
-		var username=getCookie("username");
+		let username=getCookie("username");
 		if (username !== null && username !== "")	{
 			alert("Welcome again " + username);
 		} else {
@@ -84,7 +87,7 @@ async function get(url) {
   // Return a new promise.
   return new Promise(function(resolve, reject) {
     // Do the usual XHR stuff
-    var req = new XMLHttpRequest();
+	let req = new XMLHttpRequest();
     req.open('GET', url);
 
     req.onload = function() {

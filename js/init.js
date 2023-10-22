@@ -23,16 +23,9 @@ window.onload = function() {
 	// gui loads widgets from local storage
 	gui.init();
 
-	window.onresize=resize_canvas;
-	resize_canvas();
+	window.onresize=grafx.resize_canvas;
+	grafx.resize_canvas();
 
-	function resize_canvas(){
-		var width = gl_canvas.width = gl_canvas.clientWidth;
-		var height = gl_canvas.height = gl_canvas.clientHeight;
-		gl.viewport(0, 0, width, height);
-		// TODO get cam from scene_manager
-		scene_manager.change_viewport(width, height);
-	}
 };
 
 

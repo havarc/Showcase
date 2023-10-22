@@ -1,8 +1,12 @@
-// light resources
-var lights_manager = new function(){
-	"use strict";
-	// let light_cache = new Map(); // stored shaders
+"use strict";
 
+/**
+ * @module lights
+ * @exports light node
+ * creat3es and manages lights in a scene
+ */
+const lights_manager = new function(){
+	// let light_cache = new Map(); // stored shaders
 
     // -- light_node prototype export --
 	let lproto = function(args){

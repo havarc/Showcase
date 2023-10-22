@@ -1,11 +1,15 @@
+"use strict";
+
 var socket;
 
-//*
+/**
+ * @module gui
+ * generates widgets, which contain buttons and various other elements
+ */
+
 // has to be var cuz JSON storage
 var gui = new function(){
-	"use strict";
-
-	// TODO: put canvas into widget
+	// TODO: put canvas into widget?
 	// TODO: put widget in front when focused
 	// var container = document.getElementById('widget-container');
 	let container = document.getElementById('main');
@@ -32,8 +36,8 @@ var gui = new function(){
 		}
 
 		// load widgets
-		console.log(page_name);
-		console.log(container);
+		// console.log(page_name);
+		// console.log(container);
 		// let widgets = JSON.parse(localStorage.getItem(page_name));
 		// console.log(widgets);
 		settings.widgets.forEach(function(w){new gui.widget(w)});
@@ -42,9 +46,9 @@ var gui = new function(){
 	//*
 	this.save_settings = function(){
 		let t = [];
-		console.log(container.children);
+		// console.log(container.children);
 		for(let e in container.children){
-			console.log(e);
+			// console.log(e);
 			let s = {
 				width: e.style.width,
 				height: e.style.height,
@@ -93,7 +97,7 @@ var gui = new function(){
 	// TODO: add close button (and close websocket)
 	this.widget = function(params){
 		params = params || {};
-		console.log(params);
+		// console.log(params);
 
 		// widget body
 		let wdgt = document.createElement('div');
@@ -150,10 +154,10 @@ var gui = new function(){
 		// activate widget
 		container.appendChild(wdgt);
 		widget_buffer.set(wdgt.id, wdgt);
-		console.log(JSON.stringify(wdgt));
-		console.log(wdgt);
-		console.log(wdgt.title);
-		console.log(wdgt.constructor.name);
+		// console.log(JSON.stringify(wdgt));
+		// console.log(wdgt);
+		// console.log(wdgt.title);
+		// console.log(wdgt.constructor.name);
 		return wdgt;
 	}
 
@@ -283,6 +287,7 @@ var gui = new function(){
 				}
 			});
 
+		// resizes the widget
 		// don't ask how this works
 		if(0 <= hselm){
 			switch(mm){
@@ -344,7 +349,7 @@ gui.create_websocket = function(params){
 	input.className = 'ws';
 	input.onkeydown = function(e){
 		// console.log('hello input');
-		if (e.keyCode == '13'){
+		if (e.code == 'Enter'){
 			socket.send(this.value);
 			this.value = '';
 		}
@@ -363,12 +368,13 @@ gui.create_websocket = function(params){
 	f.appendChild(ws);
 	return f;
 }
-//*/
 
-// --- input manager ---
-// singleton to manage all inputs
+/**
+ * @module input
+ * manages keybinds and mousemovement
+ */
 const input = new function(){
-	var cc; // cache the main mouse target
+	let cc; // cache the main mouse target
 	this.init = function(){
 		// keyboard is always caught by <body>
 		document.body.onkeydown = key_down;
@@ -391,11 +397,10 @@ const input = new function(){
 	}
 
 	// keyboard
-	var keydown_events = new Map();
-	var keyup_events = new Map();
+	let keydown_events = new Map();
+	let keyup_events = new Map();
 	// handler functions
-	// ignore error vs check if?
-	// it checks anyways, so what's the point?
+	// ignore error vs check if? it checks anyways, so what's the point?
 	function key_down(evnt){
 		// only act if the key has no target
 		if(document.body == evnt.target){
@@ -420,11 +425,11 @@ const input = new function(){
 	this.remove_keyup = function(key){ keyup_events.delete(key); }
 
 	// mouse
-	var mousedown_events = [];
-	var mouseup_events = [];
-	var mousemove_events = [];
-	var mousewheel_events = [];
-	var mstop = false;
+	let mousedown_events = [];
+	let mouseup_events = [];
+	let mousemove_events = [];
+	let mousewheel_events = [];
+	let mstop = false;
 	function mouse_down(evnt){
 		mousedown_events[evnt.button] && mousedown_events[evnt.button]();
 		mouseup_events[evnt.button] && (mstop = mouseup_events[evnt.button]);

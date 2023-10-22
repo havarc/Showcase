@@ -7,7 +7,7 @@ var widget_manager = function(){
     //start all widgets here
     new Widget({
       width: '100%',
-      height:
+      height: '100%'
       })
   }
 

@@ -1,6 +1,13 @@
-var trajectory_manager = new function(){
-	"use strict";
-	// size of one trajectory set
+"use strict";
+
+/**
+ * @module trajectory
+ * @exports basic node
+ * manages the position and orientation of object nodes
+ */
+
+const trajectory_manager = new function(){
+		// size of one trajectory set
 	//	0 float id
 	//	1 vec3 position
 	//	4 vec3 movement
@@ -10,7 +17,6 @@ var trajectory_manager = new function(){
 	// 18 quat torque (angular acceleration)
 	// 22 mat4 transform local
 	// 38 mat4 transform global
-	// TODO: add environmental acceleration
 	let set_size = 64;
 
 	let current_index = 0; // index after the last used set
@@ -20,6 +26,9 @@ var trajectory_manager = new function(){
 
 	// trajectory prototype, object node
 	let tproto = function(args){
+		if(!args.prn){
+			console.error("node has no parent")
+		}
 		// create new dataset
 		// TODO: receive full dataset on creation
 		let tdata = new array_type(set_size);
@@ -38,6 +47,8 @@ var trajectory_manager = new function(){
 		trajectory_buffer.push(tdata);
 		this._tdata = tdata;
 		this.ready = 0
+		console.log(this);
+		return null
 	}
 
 	// let vecproto;
@@ -362,7 +373,7 @@ var trajectory_manager = new function(){
 
 	function slerp(q1, q2, t){
 
-		var dot = quat.dot(q1, q2);
+		let dot = quat.dot(q1, q2);
 
 		// The angle between start must be acute. Since q and -q represent
 		// the same rotation, negate q to get the acute angle.

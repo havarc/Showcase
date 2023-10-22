@@ -1,24 +1,30 @@
+"use strict";
 
 // error margins for calculations
 function EPSILON(value){
 	return isNaN(value) || 0.0000001 > Math.abs(value);
 }
 
-// model resources
+/**
+ * @module models
+ * @exports model node prototype
+ * loads and manages all the models
+ * TODO: split into meshes and materials
+ */
 const model_manager = new function(){
-	// -- setup --
-	"use strict";
+	let gl;
 	let model_buffer = new Map(); // stored models
 	let requests = new Map();
 	// TODO: keep track of references and remove unused models
+	// TODO: create/load default/error models
 
-	let sdcnt = 2; // subdivision count
+	// TODO: use setup or default
+	let sdcnt = 3; // subdivision count
 	let lod = 0; // current level of detail
 
 	// let rg = new Randy(3812951);
 
 	let subdivide = new Worker('js/subdivide-worker.js');
-
 
 	// TODO: filter for unused vertex data
 	// -- generate edges for wireframe --
@@ -61,204 +67,158 @@ const model_manager = new function(){
 	// TODO: there's a shortcut to this
 	function load_model(name){
 		if(!name || name.length < 4) return null;
-		var mdata = model_buffer.get(name);
+		let mdata = model_buffer.get(name);
 		if(mdata){return mdata;}
-		mdata = {};
+
+		if(name.endsWith(".json")){
+			mdata = fetch(new Request(`models/${name}`))
+			.then(response => response.json())
+			.then(model_received_json);
+		} else if(name.endsWith(".obj")){
+			mdata = fetch(new Request(`models/${name}`))
+			.then(response => response.text())
+			.then(model_received_obj);
+		} else {
+			console.error("model in unknown data format requested: " + name)
+			return
+		}
+		
 		mdata.name = name;
 		model_buffer.set(name, mdata);
-		
-		fetch(new Request(`models/${name}.json`))
-			.then(response => response.json())
-			.then(model_received);
-
 		// model_buffer.set(name + '_normals', mdata_n);
 		// requests.delete(name + '_normals')
 		// requests.delete(name);
 		return mdata;
 
 		// private callback when the model is received
-		async function model_received(response){
+		async function model_received_json(response){
 			console.log(name);
-			mdata.lod_buffer = [];
-			mdata.lod_edge_buffer = [];
-			mdata.triangle_count = [0,0];
-			mdata.line_count = [0,0];
+			console.log(response);
+			// mdata.name = name;
+			// mdata.lod_buffer = [];
+			// mdata.lod_edge_buffer = [];
+			// mdata.triangle_count = [0,0];
+			// mdata.line_count = [0,0];
+			// mdata.normal_data
 
 			// if(settings.generate_model_normals){
 			// 	mdata_n.triangle_count = [0,0];
 			// 	mdata_n.line_count = [0,0];
 			// }
+			response.name = name
+			process_model(response);
+		}
+
+		async function model_received_obj(response){
+			const objPositions = [[]];
+			const objTexcoords = [[]];
+			const objNormals = [[]];
+
+			// same order as `f` indices
+			const objVertexData = [
+				objPositions,
+				objTexcoords,
+				objNormals,
+			];
+			// same order as `f` indices
+			let webglVertexData = [
+				[],   // positions
+				[],   // texcoords
+				[],   // normals
+			];
+ 
+			console.log("Object file received");
+			console.log(response);
+
+			function addVertex(vert) {
+				// console.log("vert:" + vert)
+				const ptn = vert.split('/');
+				ptn.forEach((objIndexStr, i) => {
+					if (!objIndexStr) {
+						return;
+					}
+					const objIndex = parseInt(objIndexStr);
+					const index = objIndex + (objIndex >= 0 ? 0 : objVertexData[i].length);
+					webglVertexData[i].push(...objVertexData[i][index]);
+				});
+			}
+
+			const keywords = {
+				v(parts) {
+				  objPositions.push(parts.map(parseFloat));
+				},
+				vn(parts) {
+				  objNormals.push(parts.map(parseFloat));
+				},
+				vt(parts) {
+				  objTexcoords.push(parts.map(parseFloat));
+				},
+				f(parts) {
+					const numTriangles = parts.length - 2;
+					for (let tri = 0; tri < numTriangles; ++tri) {
+						addVertex(parts[0]);
+						addVertex(parts[tri + 1]);
+						addVertex(parts[tri + 2]);
+					}
+				}
+			}
+					   
+			const keywordRE = /(\w*)(?: )*(.*)/;
+			const lines = response.split('\n');
+			for (let lineNo = 0; lineNo < lines.length; ++lineNo) {
+			  const line = lines[lineNo].trim();
+			  if (line === '' || line.startsWith('#')) {
+				continue;
+			  }
+			  const m = line.split(/\s+/);
+			  const keyword = m[0];
+			  const parts = m.slice(1);
+			  const handler = keywords[keyword];
+			//   console.log(m, keyword, parts)
+			  if (!handler) {
+				console.warn('unhandled keyword:', keyword, 'at line', lineNo + 1);
+				continue;
+			  }
+			  handler(parts);
+			}
+			console.log(webglVertexData)
+		  
+		}
+		
+		function process_model(raw_blob){
 
 			// normalize normals just in case
-			for (let j = 0; j < response.normal_data.length / 3; j++) {
-				let vx = response.normal_data[j*3+0];
-				let vy = response.normal_data[j*3+1];
-				let vz = response.normal_data[j*3+2];
+			for (let j = 0; j < raw_blob.normal_data.length ; j=j+3) {
+				let vx = raw_blob.normal_data[j+0];
+				let vy = raw_blob.normal_data[j+1];
+				let vz = raw_blob.normal_data[j+2];
 				let vd = Math.sqrt(vx*vx+vy*vy+vz*vz);
-				response.normal_data[j*3+0] /= vd;
-				response.normal_data[j*3+1] /= vd;
-				response.normal_data[j*3+2] /= vd;
+				raw_blob.normal_data[j+0] /= vd;
+				raw_blob.normal_data[j+1] /= vd;
+				raw_blob.normal_data[j+2] /= vd;
 			}
-			generate_edges(response);
+			generate_edges(raw_blob);
 			// TODO error handling
-			response.sdcnt = sdcnt;
-			console.log(response);
-			subdivide.postMessage(response);
-
-			// * Vertex Data
-			// create vertex based buffersn(mdata.normal_buffer);
-			mdata.normal_buffer = gl.createBuffer();
-			gl.bindBuffer(gl.ARRAY_BUFFER, mdata.normal_buffer);
-			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(response.normal_data), gl.STATIC_DRAW);
-
-			mdata.color_buffer && gl.deleteBuffer(mdata.color_buffer);
-			mdata.color_buffer = gl.createBuffer();
-			gl.bindBuffer(gl.ARRAY_BUFFER, mdata.color_buffer);
-			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(response.color_data), gl.STATIC_DRAW);
-			gl.bindBuffer(gl.ARRAY_BUFFER, null);
-
-			// -- create dummy lod-data until subdivide is done --
-			let lod_dummy = gl.createBuffer();
-			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_dummy);
-			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(response.triangle_index), gl.STATIC_DRAW);
-			let lod_length = response.triangle_index.length
-
-			let edge_dummy = gl.createBuffer();
-			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, edge_dummy);
-			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(response.edge_index), gl.STATIC_DRAW);
-			let edge_length = response.edge_index.length
-
-			for(let i = 0; i <= sdcnt; i++){
-				mdata.lod_buffer[i] = lod_dummy;
-				mdata.triangle_count[i] = lod_length;
-				mdata.lod_edge_buffer[i] = edge_dummy;
-				mdata.line_count[i] = edge_length;
-
-				// mdata_n.triangle_count[i] = 0;
-				// normals are reused
-				// mdata_n.line_count[i] = response.vertex_data.length/3*2;
-			}
-			/* editor only
-			/* -- normal render data --
-			let c = response.vertex_data.length/3;
-			response.normal_render_data = [];
-			response.normal_color_data = [];
-			// response.normal_index = [];
-			for(let j = 0; j<c; j++)
-			{
-				response.normal_render_data[j*6+0] = response.vertex_data[j*3+0];
-				response.normal_render_data[j*6+1] = response.vertex_data[j*3+1];
-				response.normal_render_data[j*6+2] = response.vertex_data[j*3+2];
-				response.normal_render_data[j*6+3] = response.vertex_data[j*3+0] + response.normal_data[j*3+0];
-				response.normal_render_data[j*6+4] = response.vertex_data[j*3+1] + response.normal_data[j*3+1];
-				response.normal_render_data[j*6+5] = response.vertex_data[j*3+2] + response.normal_data[j*3+2];
-				response.normal_color_data.push(0.5, 0.5, 0.5, 1.0);
-				response.normal_color_data.push(0.5, 0.5, 0.5, 1.0);
-				// response.normal_index[j*2+0] = j*2+0;
-				// response.normal_index[j*2+1] = j*2+1;
-			}
-			//*/
-			if(settings.generate_model_normals){
-				mdata_n.vertex_buffer && gl.deleteBuffer(mdata_n.vertex_buffer);
-				mdata_n.vertex_buffer = gl.createBuffer();
-				gl.bindBuffer(gl.ARRAY_BUFFER, mdata_n.vertex_buffer);
-				gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(response.normal_render_data), gl.STATIC_DRAW);
-
-				mdata_n.color_buffer && gl.deleteBuffer(mdata_n.color_buffer);
-				mdata_n.color_buffer = gl.createBuffer();
-				gl.bindBuffer(gl.ARRAY_BUFFER, mdata_n.color_buffer);
-				gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(response.normal_color_data), gl.STATIC_DRAW);
-
-				// mdata_n.index_buffer && gl.deleteBuffer(mdata_n.index_buffer);
-				// mdata_n.index_buffer = gl.createBuffer();
-				// gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mdata_n.index_buffer);
-				// gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(response.normal_index), gl.STATIC_DRAW);
-
-			}
-			//*/
-
+			raw_blob.sdcnt = sdcnt;
+			// console.log(raw_blob);
+			subdivide.postMessage(raw_blob);
 		}
 	};
 
 	// subdivide webworker done working
 	subdivide.onmessage = function(e){
 		let response = e.data;
-		let mdata = model_buffer.get(response.name);
-		console.log(response);
+		let model = model_buffer.get(response.name);
 		console.log("subdivider finished "+response.name);
-		
-		// create vertex based buffers
-		// all lods can read from the same sequence
-		// thus the same buffer can be used
-		mdata.vertex_buffer && gl.deleteBuffer(mdata.vertex_buffer);
-		mdata.vertex_buffer = gl.createBuffer();
-		gl.bindBuffer(gl.ARRAY_BUFFER, mdata.vertex_buffer);
-		gl.bufferData(gl.ARRAY_BUFFER, response.vertex_data, gl.STATIC_DRAW);
-		mdata.vertex_count = response.vertex_data.length/3;
-		
-		mdata.normal_buffer && gl.deleteBuffer(mdata.normal_buffer);
-		mdata.normal_buffer = gl.createBuffer();
-		gl.bindBuffer(gl.ARRAY_BUFFER, mdata.normal_buffer);
-		gl.bufferData(gl.ARRAY_BUFFER, response.normal_data, gl.STATIC_DRAW);
-		
-		mdata.color_buffer && gl.deleteBuffer(mdata.color_buffer);
-		mdata.color_buffer = gl.createBuffer();
-		gl.bindBuffer(gl.ARRAY_BUFFER, mdata.color_buffer);
-		gl.bufferData(gl.ARRAY_BUFFER, response.color_data, gl.STATIC_DRAW);
-
-		gl.bindBuffer(gl.ARRAY_BUFFER, null);
-		gl.bindVertexArray(null);
-
-		for(let i = 0; i <= sdcnt; i++){
-			// if(i)	response = subdivide(response, i);
-			// create subsequent lod
-			mdata.lod_buffer[i] && gl.deleteBuffer(mdata.lod_buffer[i]);
-			mdata.lod_buffer[i] = gl.createBuffer();
-			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mdata.lod_buffer[i]);
-			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,response.triangle_index[i], gl.STATIC_DRAW);
-			mdata.triangle_count[i] = response.triangle_index[i].length;
-
-			mdata.lod_edge_buffer[i] && gl.deleteBuffer(mdata.lod_edge_buffer[i]);
-			mdata.lod_edge_buffer[i] = gl.createBuffer();
-			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mdata.lod_edge_buffer[i]);
-			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, response.edge_index[i], gl.STATIC_DRAW);
-			mdata.line_count[i] = response.edge_index[i].length;
-
-			// mdata_n.triangle_count[i] = 0;
-			// normals are reused
-			// mdata_n.line_count[i] = response.vertex_data.length/3*2;
+		if(response.texture_data){
+			let tex = texture_manager.load_texture(response.texture);
+			console.log(tex);
+			model.render = grafx.generate_textured_render_function(response, tex);
+		} else {
+			model.render = grafx.generate_colored_render_function(response);
 		}
 
-		mdata.trivao = [];
-		for(let i = 0; i <= sdcnt; i++){
-			// create the Vertex Array Object
-			let vao = gl.createVertexArray();
-			gl.bindVertexArray(vao);
-
-			gl.enableVertexAttribArray(main_program.vertex);
-			gl.bindBuffer(gl.ARRAY_BUFFER, mdata.vertex_buffer);
-			gl.vertexAttribPointer(main_program.vertex, 3, gl.FLOAT, false, 0, 0);
-
-			if(Number.isInteger(main_program.normal)){
-				gl.enableVertexAttribArray(main_program.normal);
-				gl.bindBuffer(gl.ARRAY_BUFFER, mdata.normal_buffer);
-				gl.vertexAttribPointer(main_program.normal, 3, gl.FLOAT, false, 0, 0);
-			}
-
-			if(Number.isInteger(main_program.color)){
-				gl.enableVertexAttribArray(main_program.color);
-				gl.bindBuffer(gl.ARRAY_BUFFER, mdata.color_buffer);
-				gl.vertexAttribPointer(main_program.color, 4, gl.FLOAT, false, 0, 0);
-			}
-
-			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mdata.lod_buffer[lod]);
-
-			mdata.trivao[i] = vao;
-			gl.bindVertexArray(null);
-		}
-		mdata.ready = true;
-		console.log(mdata);
-		
+		model.ready = true;
 	}
 
 	// -- lod interface --
@@ -267,13 +227,31 @@ const model_manager = new function(){
 
 	// -- model_node prototype export --
 	let mproto = function(args){
-		trajectory_manager.generate_proto.call(this, args);
+		args.prn && (this.parent_node = args.prn) && this.parent_node.add_child(this);
+		// trajectory_manager.generate_proto.call(this, args);
 		// this._mdata = model_buffer.get(args.mdl) || load_model(args.mdl).then(data=>{this._mdata=data});
 		// this._mdata = model_buffer.get(args.mdl) || load_model(args.mdl);
 		this._mdata = load_model(args.mdl);
+		if(args.tex && typeof(args.tex)=="string"){
+			this._texture = texture_manager.load_texture(args.tex)
+		}
+		console.log(this._mdata);
 	}
 
-	mproto.prototype = Object.create(trajectory_manager.generate_proto.prototype)
+	// mproto.prototype = Object.create(trajectory_manager.generate_proto.prototype)
+
+	mproto.prototype.is_model_node = true
+	mproto.prototype.visible = function(){return true;};
+	// TODO: cull check by trajectory_manager
+	mproto.prototype.get_transform = function(){
+		return this.parent_node.get_transform();
+	};
+	mproto.prototype.get_local_transform = function(){
+		return [1.0, 0.0,0.0,0.0,
+		0.0,1.0,0.0,0.0,
+		0.0,0.0,1.0,0.0,
+		0.0,0.0,0.0,1.0];
+	};
 
 	mproto.prototype.reload = function(){
 		load_model(this._mdata.name).then(data=>{this._mdata=data});
@@ -285,37 +263,39 @@ const model_manager = new function(){
 	// ! then apply camera settings
 	// todo adjust lod in VAO when hitting the function
 
+	// ! currently not used (mesh is drawn via grafx, see below)
+	/*
 	mproto.prototype.draw_triangles = function(){
-		if (this._mdata.ready){
-			gl.bindVertexArray(this._mdata.trivao[lod]);
-			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._mdata.lod_buffer[lod]);
-
-			// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.vertex_buffer);
-			// gl.vertexAttribPointer(main_program.vertex, 3, gl.FLOAT, false, 0, 0);
-	
-			// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.normal_buffer);
-			// gl.vertexAttribPointer(main_program.normal, 3, gl.FLOAT, false, 0, 0);
-	
-			// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.color_buffer);
-			// gl.vertexAttribPointer(main_program.color, 4, gl.FLOAT, false, 0, 0);
-	
-			// gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._mdata.lod_buffer[lod]);
-	
-
-			gl.uniform3fv(main_program.position, this.gpos);
-			gl.uniform4fv(main_program.orientation, this.gorn);
-			gl.uniformMatrix4fv(main_program.mvMatrix, false, this.get_transform());
-			// console.log(this.get_transform())
-
-			// TODO: use drawRangeElements for lod
-			gl.drawElements(gl.TRIANGLES, this._mdata.triangle_count[lod], gl.UNSIGNED_SHORT, 0);
-			gl.bindVertexArray(null);
+		if (!this._mdata.ready){
+			return;
 		}
-		else{
-			return
-		}
-	}
+		gl.bindVertexArray(this._mdata.trivao[lod]);
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._mdata.lod_buffer[lod]);
 
+		// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.vertex_buffer);
+		// gl.vertexAttribPointer(main_program.vertex, 3, gl.FLOAT, false, 0, 0);
+
+		// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.normal_buffer);
+		// gl.vertexAttribPointer(main_program.normal, 3, gl.FLOAT, false, 0, 0);
+
+		// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.color_buffer);
+		// gl.vertexAttribPointer(main_program.color, 4, gl.FLOAT, false, 0, 0);
+
+		// gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._mdata.lod_buffer[lod]);
+
+
+		gl.uniform3fv(main_program.position, this.parent_node.gpos);
+		gl.uniform4fv(main_program.orientation, this.parent_node.gorn);
+		gl.uniformMatrix4fv(main_program.mvMatrix, false, this.get_transform());
+		// console.log(this.get_transform())
+
+		// TODO: use drawRangeElements for lod
+		gl.drawElements(gl.TRIANGLES, this._mdata.triangle_count[lod], gl.UNSIGNED_SHORT, 0);
+		gl.bindVertexArray(null);
+	}//*/
+
+	// ! currently not used (mesh is drawn via grafx, see below)
+	/*
 	mproto.prototype.draw_wireframe = function(){
 		gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.vertex_buffer);
 		gl.vertexAttribPointer(main_program.vertex, 3, gl.FLOAT, false, 0, 0);
@@ -325,35 +305,24 @@ const model_manager = new function(){
 
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._mdata.lod_edge_buffer[lod]);
 
-		gl.uniform3fv(main_program.position, this.gpos);
-		gl.uniform4fv(main_program.orientation, this.gorn);
+		gl.uniform3fv(main_program.position, this.parent_node.gpos);
+		gl.uniform4fv(main_program.orientation, this.parent_node.gorn);
 
 		gl.drawElements(gl.LINES, this._mdata.line_count[lod], gl.UNSIGNED_SHORT, 0);
 		// TODO: use drawRangeElements for lod
 		gl.bindBuffer(gl.ARRAY_BUFFER, null);
-	}
+	}//*/
 
-	mproto.prototype.draw_lines = function(){
-		gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata_n.vertex_buffer);
-		gl.vertexAttribPointer(main_program.vertex, 3, gl.FLOAT, false, 0, 0);
-
-		gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata_n.color_buffer);
-		gl.vertexAttribPointer(main_program.color, 4, gl.FLOAT, false, 0, 0);
-
-		// gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._mdata_n.index_buffer);
-		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
-
-		gl.uniform3fv(main_program.position, this.gpos);
-		gl.uniform4fv(main_program.orientation, this.gorn);
-
-		gl.drawArrays(gl.LINES, 0, this._mdata_n.count[lod]);
-		// gl.drawElements(gl.LINES, this._mdata_n.count[lod], gl.UNSIGNED_SHORT, 0);
-		// TODO: use drawRangeElements for lod
-		gl.bindBuffer(gl.ARRAY_BUFFER, null);
-	}
 
 	// mproto.prototype.draw = mproto.prototype.draw_wireframe;
-	mproto.prototype.draw = mproto.prototype.draw_triangles;
+	// mproto.prototype.draw = mproto.prototype.draw_triangles;
+	// mproto.prototype.draw = mproto._mdata.render
+	mproto.prototype.draw = function(){
+		if(this._mdata.ready){
+			console.log("enabling draw");
+			this.draw = this._mdata.render;
+		}
+	}
 
 	this.generate_proto = mproto;
 
@@ -362,7 +331,10 @@ const model_manager = new function(){
 		console.log(model_buffer);
 	}
 
+	// TODO: actually clean the buffers
 	this.cleanup = function(){
 		model_buffer = new Map();
 	};
 };
+
+

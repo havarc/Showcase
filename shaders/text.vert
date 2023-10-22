@@ -7,7 +7,7 @@
 
 in vec3 vertex_data;
 in vec3 normal_data;
-in vec4 color_data;
+in vec2 texture_data;
 
 uniform mat4 rtMatrix;
 uniform mat4 mvMatrix;
@@ -16,15 +16,14 @@ uniform vec3 position;
 uniform vec4 orientation;
 
 out vec3 vNormal;
-out vec4 vColor;
+out vec2 vTexture;
 
 void main(void){
 	vec3 tmp = position + vertex_data + 2.0 * cross( cross( vertex_data, orientation.xyz ) + orientation.w * vertex_data, orientation.xyz );
 	gl_Position = vpMatrix * inverse(rtMatrix) * vec4(tmp, 1.0);
 	// gl_Position = vpMatrix * rtMatrix * mvMatrix * vec4(vertex_data, 1.0);
 
-
-	vNormal = inverse(mat3(rtMatrix)) * normal_data;
-
-	vColor = color_data;
+	vTexture = texture_data;
+	// vNormal =  inverse(mat3(rtMatrix)) * normal_data;
+	// vColor = color_data;
 }

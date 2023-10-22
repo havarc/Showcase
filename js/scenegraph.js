@@ -1,7 +1,10 @@
 // --- scene graph ---
 // singleton to manage everything on the 3d canvas
+// import object_node from "trajectory.js";
+"use strict"
+
+
 const scene_manager = new function(){
-	"use strict";
 	// scene graph is the center of the world
 
 	var	scene_heads = []; // all scene heads
@@ -26,9 +29,11 @@ const scene_manager = new function(){
 
 };
 
-// --- scene head ---
-// object and camera nodes are attached directly to the scene head
-// sub objects and lights are attached to their respective parent_node object nodes
+/**
+ * scene head node
+ * object and camera nodes are attached directly to the scene head
+ * sub objects and lights are attached to their respective parent_node object nodes
+ */
 var scene_head = function(){
 	this.children = [];
 	this.cameras = [];
@@ -38,9 +43,9 @@ var scene_head = function(){
 scene_head.prototype.get_parent_node = function(){return false;};
 // \/ MARKED FOR REMOVAL! \/
 scene_head.prototype.add_child = function(child){
-	if(!child.is_object_node){
-		console.warn('WARNING: attempted to add invalid child!'); console.trace(); return;
-	}
+	// if(!child.is_object_node){
+	// 	console.warn('WARNING: attempted to add invalid child!'); console.trace(); return;
+	// }
 	if(this.children.indexOf(child) != -1){
 		console.warn('WARNING: attempted to add child twice (or moved it around)!'); console.trace(); return;
 	}
@@ -69,7 +74,8 @@ scene_head.prototype.render = function(){
 	});
 
 	// render all cameras
-	this.cameras.forEach(function(c){this.activeCamera = c;c.render();});
+	// this.cameras.forEach(function(c){this.activeCamera = c;c.render();});
+	this.cameras.forEach(function(c){c.render();});
 	this.activeCamera = {}
 };
 
@@ -88,7 +94,10 @@ scene_head.prototype.prepare = function(){
 };
 
 scene_head.prototype.get_transform = function(force_update){
-	return mat4.create();
+	return [1.0, 0.0,0.0,0.0,
+		0.0,1.0,0.0,0.0,
+		0.0,0.0,1.0,0.0,
+		0.0,0.0,0.0,1.0];
 };
 
 
@@ -97,7 +106,7 @@ scene_head.prototype.get_transform = function(force_update){
 var object_node = trajectory_manager.generate_proto;
 object_node.prototype.is_object_node = true;
 // non model nodes only update their transform
-object_node.prototype.draw = function(){};
+// object_node.prototype.draw = function(){};
 object_node.prototype.add_child = function(child){
 	let scene_head = this.parent_node;
 	// get up to scene head
@@ -113,8 +122,6 @@ object_node.prototype.add_child = function(child){
 
 // --- Model Node ---
 var model_node = model_manager.generate_proto;
-model_node.prototype.visible = function(){return true;};
-// TODO: cull check by trajectory_manager
 
 // --- lightsource ---
 // attached to model_node, does have neither model nor children
@@ -127,6 +134,6 @@ function light_node(parent_node, traj_data, params){
 // camera with a position in the world and a specified place on the canvas
 var camera_node = grafx.generate_proto;
 // cameras are not allowed to have children
-camera_node.prototype.add_child = function(){
-	return false;
-}
+// camera_node.prototype.add_child = function(){
+// 	return false;
+// }

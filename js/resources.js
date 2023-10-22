@@ -1,18 +1,23 @@
- // buffer cache
-var texture_manager = function(){
-	var self = {};
-	var buffers = {};
+"use strict";
+
+ /**
+  * @module textures
+  * loads and manages textures
+  */
+const texture_manager = new function(){
+	let self = {};
+	let buffers = {};
 
 	// creates a buffer from a stacked array, needs iOffset & iLength
 	self.buffer_from_item_set = function(bufferdata, params){
 		params = params || {};
-		var item_offset = params.i_offset = params.i_offset || 0; // starting position within an item
-		var item_length = params.i_length = params.i_length || 1;
-		var buffer_offset = params.b_offset = params.b_offset || 0;
-		var buffer_length = params.b_length = params.b_length || (bufferdata.length - buffer_offset);
+		let item_offset = params.i_offset = params.i_offset || 0; // starting position within an item
+		let item_length = params.i_length = params.i_length || 1;
+		let buffer_offset = params.b_offset = params.b_offset || 0;
+		let buffer_length = params.b_length = params.b_length || (bufferdata.length - buffer_offset);
 
-		var b, bmax = buffer_offset + buffer_length, i, imax = item_offset + item_length, c=0;
-		var bdata = new Float32Array(bmax * imax);
+		let b, bmax = buffer_offset + buffer_length, i, imax = item_offset + item_length, c=0;
+		let bdata = new Float32Array(bmax * imax);
 		for (b = buffer_offset; b < bmax; b++)
 			for (i = item_offset; i < imax; i++){
 				bdata[c++] = (bufferdata[b][i]);
@@ -25,18 +30,18 @@ var texture_manager = function(){
 	// not passing bLength will pull all data from offset to end of buffer
 	self.buffer = function(bufferdata, params){
 		params = params || {};
-		var item_offset = params.i_offset || 0;
-		var item_length = params.i_length || 0;
-		var item_size = params.i_size || 1;
-		var buffer_offset = params.b_offset || 0;
-		var buffer_length = params.b_length || (bufferdata.length - buffer_offset);
-		var data_type = params.data_type || gl.FLOAT;
+		let item_offset = params.i_offset || 0;
+		let item_length = params.i_length || 0;
+		let item_size = params.i_size || 1;
+		let buffer_offset = params.b_offset || 0;
+		let buffer_length = params.b_length || (bufferdata.length - buffer_offset);
+		let data_type = params.data_type || gl.FLOAT;
 
-		var bid = 'BID' + Math.floor(Math.random()*99999);  // random buffer id, may derive from model/texture
-		var t_buffer = gl.createBuffer();
+		let bid = 'BID' + Math.floor(Math.random()*99999);  // random buffer id, may derive from model/texture
+		let t_buffer = gl.createBuffer();
 		t_buffer.item_size = item_size;
 		t_buffer.num_items = buffer_length;
-		var bdata = new Float32Array(bufferdata, buffer_offset, buffer_length);
+		let bdata = new Float32Array(bufferdata, buffer_offset, buffer_length);
 
 		gl.bindBuffer(gl.ARRAY_BUFFER, t_buffer);
 		gl.bufferData(gl.ARRAY_BUFFER, bdata, gl.STATIC_DRAW);
@@ -62,7 +67,7 @@ var texture_manager = function(){
 
 	// returns the proper gl-type from array-type
 	function get_gl_type(arraytype){
-		var glt;
+		let glt;
 		switch(arraytype){
 			case(Float32Array): return gl.FLOAT;
 			case(Uint8Array): return gl.UNSIGNED_BYTE;
