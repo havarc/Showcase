@@ -80,8 +80,7 @@ const cookie_manager = new function(){
 			}
 		}
 	};
-}();
-
+};
 // --- ajax requests ---
 async function get(url) {
   // Return a new promise.

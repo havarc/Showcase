@@ -12,33 +12,24 @@ const degtorad = Math.PI / 180;
  */
 const grafx = new function(){
 	let gl_canvas, gl;
-	let main_program;
-	let text_program;
+	let color_program;
+	let texture_program;
 	let line_program;
+	let obj_program;
 	let old_ms = 0;
 	let sdcnt = 3;
 	let lod = 0; // current level of detail
 
 	this.init = function(){
 		gl_canvas = document.getElementById('local-canvas');
-		console.log('starting webgl');
 		// loadup webgl
 		gl = WebGLUtils.setupWebGL(gl_canvas);
 		if (!gl) {alert("Can't get WebGL"); return;}
 		// request main shader
-		main_program = shader_manager.request_shader('main');
-		text_program = shader_manager.request_shader('text');
+		color_program = shader_manager.request_shader('color');
+		texture_program = shader_manager.request_shader('texture');
 		line_program = shader_manager.request_shader('line');
-		// setup gl
-
-		// gl.enable(gl.DEPTH_TEST);
-		// gl.disable(gl.DEPTH_TEST);
-		// gl.depthFunc(gl.LESS);
-		// gl.enable(gl.BLEND);
-		// gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-		// gl.clearDepth(1.0);
-		// gl.clearColor(0.5, 1.0, 1.0, 1.0);
-		// gl.enable(gl.POINT_SMOOTH)
+		obj_program = shader_manager.request_shader('obj');
 
 		// settings
 		gl.clearColor(0.0, 0.0, 0.0, 1.0);
@@ -64,12 +55,9 @@ const grafx = new function(){
 		let texture = gl.createTexture();
 		let image = new Image();
 		image.onload = () => {
-			console.log('image received: '+src)
-
 			gl.activeTexture(gl.TEXTURE0);
 			gl.bindTexture(gl.TEXTURE_2D, texture);
 			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-			// gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, image);
 			gl.generateMipmap(gl.TEXTURE_2D);
 
 			//turn off mips for now and clamp to edge
@@ -82,208 +70,323 @@ const grafx = new function(){
   		return texture;
 	}
 
+	// let dtex = gl.createTexture();
+	
+	this.default_texture = function(){}
+
 	// model_node can call this to get buffers for their data
 	// returns the render-function for colored meshes
 	this.generate_colored_render_function = function(mesh){
-		console.log(mesh);
+		if(!mesh.triangle_index){
+			return () => {};
+		}
+
+		// create the Vertex Array Object
+		let vao = gl.createVertexArray();
+		gl.bindVertexArray(vao);
+
 		let vertex_buffer = gl.createBuffer();
 		gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
 		gl.bufferData(gl.ARRAY_BUFFER, mesh.vertex_data, gl.STATIC_DRAW);
-		let vertex_count = mesh.vertex_data.length/3;
-		
-		let normal_buffer = gl.createBuffer();
-		gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
-		gl.bufferData(gl.ARRAY_BUFFER, mesh.normal_data, gl.STATIC_DRAW);
-		
-		let color_buffer = gl.createBuffer();
-		gl.bindBuffer(gl.ARRAY_BUFFER, color_buffer);
-		gl.bufferData(gl.ARRAY_BUFFER, mesh.color_data, gl.STATIC_DRAW);
+		gl.enableVertexAttribArray(color_program.vertex);
+		gl.vertexAttribPointer(color_program.vertex_data, 3, gl.FLOAT, false, 0, 0);
 
+		if(Number.isInteger(color_program.normal_data)){
+			let normal_buffer = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
+			gl.bufferData(gl.ARRAY_BUFFER, mesh.normal_data, gl.STATIC_DRAW);
+			gl.enableVertexAttribArray(color_program.normal_data);
+			gl.vertexAttribPointer(color_program.normal_data, 3, gl.FLOAT, false, 0, 0);
+		}
+
+		if(Number.isInteger(color_program.color_data)){
+			let color_buffer = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, color_buffer);
+			gl.bufferData(gl.ARRAY_BUFFER, mesh.color_data, gl.STATIC_DRAW);
+			gl.enableVertexAttribArray(color_program.color_data);
+			gl.vertexAttribPointer(color_program.color_data, 4, gl.FLOAT, false, 0, 0);
+		}
 		gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
 		gl.bindVertexArray(null);
 
-		if(mesh.triangle_index){
-			let lod_buffer = [];
-			let lod_edge_buffer = [];
-			let triangle_count = [];
-			let line_count = [];
+		let lod_buffer = [];
+		let lod_edge_buffer = [];
+		let triangle_count = [];
+		let line_count = [];
 
-			for(let i = 0; i <= sdcnt; i++){
-				// if(i)	mesh = subdivide(mesh, i);
-				// create subsequent lod
-				lod_buffer[i] = gl.createBuffer();
-				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[i]);
-				gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,mesh.triangle_index[i], gl.STATIC_DRAW);
-				triangle_count[i] = mesh.triangle_index[i].length;
+		for(let i = 0; i <= sdcnt; i++){
+			// if(i)	mesh = subdivide(mesh, i);
+			// create subsequent lod
+			lod_buffer[i] = gl.createBuffer();
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[i]);
+			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,mesh.triangle_index[i], gl.STATIC_DRAW);
+			triangle_count[i] = mesh.triangle_index[i].length;
 
-				lod_edge_buffer[i] = gl.createBuffer();
-				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_edge_buffer[i]);
-				gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.edge_index[i], gl.STATIC_DRAW);
-				line_count[i] = mesh.edge_index[i].length;
-
-				// mdata_n.triangle_count[i] = 0;
-				// normals are reused
-				// mdata_n.line_count[i] = mesh.vertex_data.length/3*2;
-			}
-		
-			let trivao = [];
-			for(let i = 0; i <= sdcnt; i++){
-				// create the Vertex Array Object
-				let vao = gl.createVertexArray();
-				gl.bindVertexArray(vao);
-
-				gl.enableVertexAttribArray(main_program.vertex);
-				gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
-				gl.vertexAttribPointer(main_program.vertex_data, 3, gl.FLOAT, false, 0, 0);
-
-				if(Number.isInteger(main_program.normal_data)){
-					gl.enableVertexAttribArray(main_program.normal_data);
-					gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
-					gl.vertexAttribPointer(main_program.normal_data, 3, gl.FLOAT, false, 0, 0);
-				}
-
-				if(Number.isInteger(main_program.color_data)){
-					gl.enableVertexAttribArray(main_program.color_data);
-					gl.bindBuffer(gl.ARRAY_BUFFER, color_buffer);
-					gl.vertexAttribPointer(main_program.color_data, 4, gl.FLOAT, false, 0, 0);
-				}
-
-				// gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[lod]);
-
-				trivao[i] = vao;
-				gl.bindVertexArray(null);
-			}
-
-			return function(lod = 0){
-				gl.bindVertexArray(trivao[lod]);
-				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[lod]);
-
-				// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.vertex_buffer);
-				// gl.vertexAttribPointer(main_program.vertex, 3, gl.FLOAT, false, 0, 0);
-		
-				// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.normal_buffer);
-				// gl.vertexAttribPointer(main_program.normal, 3, gl.FLOAT, false, 0, 0);
-		
-				// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.color_buffer);
-				// gl.vertexAttribPointer(main_program.color, 4, gl.FLOAT, false, 0, 0);
-		
-				// gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._mdata.lod_buffer[lod]);
-		
-				gl.uniform3fv(main_program.position, this.parent_node.gpos);
-				gl.uniform4fv(main_program.orientation, this.parent_node.gorn);
-				gl.uniformMatrix4fv(main_program.mvMatrix, false, this.get_transform());
-				// console.log(this.get_transform())
-
-				// TODO: use drawRangeElements for lod
-				gl.drawElements(gl.TRIANGLES, triangle_count[lod], gl.UNSIGNED_SHORT, 0);
-				gl.bindVertexArray(null);
-			};
+			lod_edge_buffer[i] = gl.createBuffer();
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_edge_buffer[i]);
+			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.edge_index[i], gl.STATIC_DRAW);
+			line_count[i] = mesh.edge_index[i].length;
 		}
+
+		// return drawing function
+		return function(lod = 0, transform, projection){
+			if(!transform instanceof Float32Array || !projection instanceof Float32Array){
+				console.warn('transform or rojection matrix not Typed Array');
+				return false;
+			}
+
+			gl.useProgram(color_program);
+
+			// load matrices
+			// TODO use uniform buffer object
+			gl.uniformMatrix4fv(color_program.rtMatrix, false, transform);
+			gl.uniformMatrix4fv(color_program.vpMatrix, false, projection);
+	
+			gl.uniform3fv(color_program.position, this.parent_node.gpos);
+			gl.uniform4fv(color_program.orientation, this.parent_node.gorn);
+			gl.uniformMatrix4fv(color_program.mvMatrix, false, this.get_transform());
+
+			gl.bindVertexArray(vao);
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[lod]);
+
+			// TODO: use drawRangeElements for lod
+			gl.drawElements(gl.TRIANGLES, triangle_count[lod], gl.UNSIGNED_SHORT, 0);
+			gl.bindVertexArray(null);
+		};
 	}
 
-	// model_node can call this to get buffers for their data
 	// returns the render-function for textured meshes
 	this.generate_textured_render_function = function(mesh, texture){
-		console.log(mesh);
+		if(!mesh.triangle_index){
+			return () => {};
+		}
+
+		// create the Vertex Array Object
+		let vao = gl.createVertexArray();
+		gl.bindVertexArray(vao);
+
 		let vertex_buffer = gl.createBuffer();
 		gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
 		gl.bufferData(gl.ARRAY_BUFFER, mesh.vertex_data, gl.STATIC_DRAW);
-		let vertex_count = mesh.vertex_data.length/3;
+		gl.enableVertexAttribArray(texture_program.vertex);
+		gl.vertexAttribPointer(texture_program.vertex_data, 3, gl.FLOAT, false, 0, 0);
+
+		// check if the data is used in the sahder
+		if(Number.isInteger(texture_program.normal_data)){
+			let normal_buffer = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
+			gl.bufferData(gl.ARRAY_BUFFER, mesh.normal_data, gl.STATIC_DRAW);
+			gl.enableVertexAttribArray(texture_program.normal_data);
+			gl.vertexAttribPointer(texture_program.normal_data, 3, gl.FLOAT, false, 0, 0);
+		}
+
+		if(Number.isInteger(texture_program.texture_data)){
+			let texture_buffer = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, texture_buffer);
+			gl.bufferData(gl.ARRAY_BUFFER, mesh.texture_data, gl.STATIC_DRAW);
+			gl.enableVertexAttribArray(texture_program.texture_data);
+			gl.vertexAttribPointer(texture_program.texture_data, 2, gl.FLOAT, false, 0, 0);
+		}
+
+		gl.bindVertexArray(null);
+
+		let lod_buffer = [];
+		let lod_edge_buffer = [];
+		let triangle_count = [];
+		let line_count = [];
+
+		for(let i = 0; i <= sdcnt; i++){
+			lod_buffer[i] = gl.createBuffer();
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[i]);
+			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,mesh.triangle_index[i], gl.STATIC_DRAW);
+			triangle_count[i] = mesh.triangle_index[i].length;
+
+			lod_edge_buffer[i] = gl.createBuffer();
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_edge_buffer[i]);
+			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.edge_index[i], gl.STATIC_DRAW);
+			line_count[i] = mesh.edge_index[i].length;
+		}
+	
+
+		// return drawing function
+		return function(lod = 0, transform, projection){
+			if(!transform instanceof Float32Array || !projection instanceof Float32Array){
+				console.warn('transform or rojection matrix not Typed Array');
+				return false;
+			}
+
+			gl.useProgram(texture_program);
+
+			// load matrices
+			// TODO use uniform buffer object
+			gl.uniformMatrix4fv(texture_program.rtMatrix, false, transform);
+			gl.uniformMatrix4fv(texture_program.vpMatrix, false, projection);
+
+			gl.uniform3fv(texture_program.position, this.parent_node.gpos);
+			gl.uniform4fv(texture_program.orientation, this.parent_node.gorn);
+			gl.uniformMatrix4fv(texture_program.mvMatrix, false, this.get_transform());
+
+			gl.bindVertexArray(vao);
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[lod]);
+	
+			gl.activeTexture(gl.TEXTURE0);
+			gl.bindTexture(gl.TEXTURE_2D, texture);
+			gl.uniform1i(texture_program.u_texture, 0)
+
+			// TODO: use drawRangeElements for lod
+			gl.drawElements(gl.TRIANGLES, triangle_count[lod], gl.UNSIGNED_SHORT, 0);
+			gl.bindVertexArray(null);
+		};
+
+	}
+
+	// returns the render-function for obj-files
+	this.generate_obj_render_function = function(mesh, materials){
+		// for some reason, the materials are given in as Promise
+		// and we have to fetch them from the mat_man by name
+		// console.log(materials);
+		const mat = material_manager.load_material(materials[0].name);
+		let parts = [];
+
+		for(let m of mesh){
+			console.log(m.data.position)
+			const vao = gl.createVertexArray();
+			gl.bindVertexArray(vao);
+
+			let position = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, position);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(m.data.position), gl.STATIC_DRAW);
+			gl.enableVertexAttribArray(obj_program.a_position);
+			gl.vertexAttribPointer(obj_program.a_position, 3, gl.FLOAT, false, 0, 0);
+
+			// let normal = gl.createBuffer();
+			// gl.bindBuffer(gl.ARRAY_BUFFER, normal);
+			// gl.bufferData(gl.ARRAY_BUFFER, m.normal, gl.STATIC_DRAW);
+			// gl.enableVertexAttribArray(obj_program.a_normal);
+			// gl.vertexAttribPointer(obj_program.a_normal, 3, gl.FLOAT, false, 0, 0);
+
+			if(m.data.color){
+				let color = gl.createBuffer();
+				gl.bindBuffer(gl.ARRAY_BUFFER, color);
+				if(m.data.color && m.data.position.length === m.data.color.length){
+					gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(m.data.color), gl.STATIC_DRAW);
+				} else {
+					gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(Array(m.data.position.length/3*4).fill(1)), gl.STATIC_DRAW);
+				}
+				gl.enableVertexAttribArray(obj_program.a_color);
+				gl.vertexAttribPointer(obj_program.a_color, 4, gl.FLOAT, false, 0, 0);
+			}
 		
-		let normal_buffer = gl.createBuffer();
-		gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
-		gl.bufferData(gl.ARRAY_BUFFER, mesh.normal_data, gl.STATIC_DRAW);
+			gl.bindVertexArray(null);
+			vao.size = m.data.position.length/3;
+			vao.mat = mat.get(m.material)
+			console.log(vao.mat.ambient);
+			parts.push(vao);
+		}
+		console.log(parts);
+
+
+		// return drawing function
+		return function(lod = 0, transform, projection){
+			var defaultmatrix = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+			gl.useProgram(obj_program);
+			// console.log(this.parent_node.gpos, this.parent_node.gorn);
+
+			// load matrices
+			// TODO use uniform buffer object
+			gl.uniformMatrix4fv(obj_program.rtMatrix, false, transform);
+			gl.uniformMatrix4fv(obj_program.vpMatrix, false, projection);
+
+			gl.uniform3fv(obj_program.position, this.parent_node.gpos);
+			gl.uniform4fv(obj_program.orientation, this.parent_node.gorn);
+
+			for(let p of parts){
+				// console.log(p.mat);
+				gl.uniform3fv(obj_program.ambient, p.mat.diffuse);
+				gl.bindVertexArray(p);
+				gl.drawArrays(gl.TRIANGLES, 0, p.size);
+			}
+			gl.bindVertexArray(null);
+		};
 		
-		let texture_buffer = gl.createBuffer();
-		gl.bindBuffer(gl.ARRAY_BUFFER, texture_buffer);
-		gl.bufferData(gl.ARRAY_BUFFER, mesh.texture_data, gl.STATIC_DRAW);
+		return
+
+		
+		let normal = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, normal);
+		gl.bufferData(gl.ARRAY_BUFFER, mesh.normal, gl.STATIC_DRAW);
+		
+		let color = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, color);
+		gl.bufferData(gl.ARRAY_BUFFER, mesh.color, gl.STATIC_DRAW);
+		
+		let texcoord = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, texcoord);
+		gl.bufferData(gl.ARRAY_BUFFER, mesh.texcoord, gl.STATIC_DRAW);
 
 		gl.bindBuffer(gl.ARRAY_BUFFER, null);
 		gl.bindVertexArray(null);
 
-		if(mesh.triangle_index){
-			let lod_buffer = [];
-			let lod_edge_buffer = [];
-			let triangle_count = [];
-			let line_count = [];
+	
+		// create the Vertex Array Object
+		gl.bindVertexArray(vao);
 
-			for(let i = 0; i <= sdcnt; i++){
-				// if(i)	mesh = subdivide(mesh, i);
-				// create subsequent lod
-				lod_buffer[i] = gl.createBuffer();
-				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[i]);
-				gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,mesh.triangle_index[i], gl.STATIC_DRAW);
-				triangle_count[i] = mesh.triangle_index[i].length;
 
-				lod_edge_buffer[i] = gl.createBuffer();
-				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_edge_buffer[i]);
-				gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.edge_index[i], gl.STATIC_DRAW);
-				line_count[i] = mesh.edge_index[i].length;
-
-				// mdata_n.triangle_count[i] = 0;
-				// normals are reused
-				// mdata_n.line_count[i] = mesh.vertex_data.length/3*2;
-			}
-		
-			let trivao = [];
-			for(let i = 0; i <= sdcnt; i++){
-				// create the Vertex Array Object
-				let vao = gl.createVertexArray();
-				gl.bindVertexArray(vao);
-
-				gl.enableVertexAttribArray(text_program.vertex);
-				gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
-				gl.vertexAttribPointer(text_program.vertex_data, 3, gl.FLOAT, false, 0, 0);
-
-				// check if the data is used in the sahder
-				if(Number.isInteger(text_program.normal_data)){
-					gl.enableVertexAttribArray(text_program.normal_data);
-					gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
-					gl.vertexAttribPointer(text_program.normal_data, 3, gl.FLOAT, false, 0, 0);
-				}
-
-				if(Number.isInteger(text_program.texture_data)){
-					gl.enableVertexAttribArray(text_program.texture_data);
-					gl.bindBuffer(gl.ARRAY_BUFFER, texture_buffer);
-					gl.vertexAttribPointer(text_program.texture_data, 2, gl.FLOAT, false, 0, 0);
-				}
-
-				// gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[lod]);
-
-				trivao[i] = vao;
-				gl.bindVertexArray(null);
-			}
-
-			return function(lod = 0){
-				gl.bindVertexArray(trivao[lod]);
-				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[lod]);
-
-				// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.vertex_buffer);
-				// gl.vertexAttribPointer(text_program.vertex, 3, gl.FLOAT, false, 0, 0);
-		
-				// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.normal_buffer);
-				// gl.vertexAttribPointer(text_program.normal, 3, gl.FLOAT, false, 0, 0);
-		
-				// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.color_buffer);
-				// gl.vertexAttribPointer(text_program.color, 4, gl.FLOAT, false, 0, 0);
-		
-				// gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._mdata.lod_buffer[lod]);
-		
-				gl.uniform3fv(text_program.position, this.parent_node.gpos);
-				gl.uniform4fv(text_program.orientation, this.parent_node.gorn);
-				gl.uniformMatrix4fv(text_program.mvMatrix, false, this.get_transform());
-
-				gl.activeTexture(gl.TEXTURE0);
-				gl.bindTexture(gl.TEXTURE_2D, texture);
-				gl.uniform1i(text_program.u_texture, 0)
-						// console.log(this.get_transform())
-
-				// TODO: use drawRangeElements for lod
-				gl.drawElements(gl.TRIANGLES, triangle_count[lod], gl.UNSIGNED_SHORT, 0);
-				gl.bindVertexArray(null);
-			};
+		// check if the data is used in the sahder
+		if(Number.isInteger(texture_program.normal_data)){
+			gl.enableVertexAttribArray(texture_program.normal_data);
+			gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
+			gl.vertexAttribPointer(texture_program.normal_data, 3, gl.FLOAT, false, 0, 0);
 		}
 
+		if(Number.isInteger(texture_program.texture_data)){
+			gl.enableVertexAttribArray(texture_program.texture_data);
+			gl.bindBuffer(gl.ARRAY_BUFFER, texture_buffer);
+			gl.vertexAttribPointer(texture_program.texture_data, 2, gl.FLOAT, false, 0, 0);
+		}
+
+		gl.bindVertexArray(null);
+
+		// return drawing function
+		return function(lod = 0, transform, projection){
+			var defaultmatrix = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+			// At init or draw time depending on use.
+			var someWorldViewProjectionMat = projection;
+			var lightWorldPos              = [100, 200, 300];
+			var worldMat                   = transform;
+			var viewInverseMat             = defaultmatrix;
+			var worldInverseTransposeMat   = defaultmatrix;
+			var lightColor                 = [1, 1, 1, 1];
+			var ambientColor               = [0.1, 0.1, 0.1, 1];
+			var diffuseTextureUnit         = 0;
+			var specularColor              = [1, 1, 1, 1];
+			var shininess                  = 60;
+			var specularFactor             = 1;
+			
+			gl.useProgram(obj_program);
+			gl.bindVertexArray(vao);
+			
+			// Setup the textures used
+			gl.activeTexture(gl.TEXTURE0 + diffuseTextureUnit);
+			gl.bindTexture(gl.TEXTURE_2D, diffuseTexture);
+			
+			// Set all the uniforms.
+			gl.uniformMatrix4fv(u_worldViewProjectionLoc, false, someWorldViewProjectionMat);
+			gl.uniform3fv(u_lightWorldPosLoc, lightWorldPos);
+			gl.uniformMatrix4fv(u_worldLoc, worldMat);
+			gl.uniformMatrix4fv(u_viewInverseLoc, viewInverseMat);
+			gl.uniformMatrix4fv(u_worldInverseTransposeLoc, worldInverseTransposeMat);
+			gl.uniform4fv(u_lightColorLoc, lightColor);
+			gl.uniform4fv(u_ambientLoc, ambientColor);
+			gl.uniform1i(u_diffuseLoc, diffuseTextureUnit);
+			gl.uniform4fv(u_specularLoc, specularColor);
+			gl.uniform1f(u_shininessLoc, shininess);
+			gl.uniform1f(u_specularFactorLoc, specularFactor);
+			
+			gl.drawArrays(TRIANGLES);
+			gl.bindVertexArray(null);
+		};
 	}
 
 	// -- lod interface --
@@ -293,7 +396,6 @@ const grafx = new function(){
 	// -- camera prototype --
 	let cproto = function(args){
 		// initialize this object
-		// trajectory_manager.generate_proto.call(this, args);
 		args.prn && (this.parent_node = args.prn) && this.parent_node.add_child(this);
 		this.scene_head = args.scene_head || {};
 		this.target = args.target || {};
@@ -363,43 +465,13 @@ const grafx = new function(){
 			// TODO: keep or delete camaera
 		}
 
-		// TODO use program by model
-		if(0){
-			gl.useProgram(main_program);
-			gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-			// load matrices
-			// TODO use uniform buffer object
-			gl.uniformMatrix4fv(main_program.rtMatrix, false, this.get_transform());
-			gl.uniformMatrix4fv(main_program.vpMatrix, false, this.projection);
-			//-- static diffuse color --
-			// Set the color to use
-			// gl.uniform4fv(main_program.u_color, [0.2, 1, 0.2, 0]); // green
-		
-			// set the light direction.
-			gl.uniform3fv(main_program.u_reverseLightDirection, [0.5, -0.7, -1]);
-		}else{
-			gl.useProgram(text_program);
-			gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-			// load matrices
-			// TODO use uniform buffer object
-			gl.uniformMatrix4fv(text_program.rtMatrix, false, this.get_transform());
-			gl.uniformMatrix4fv(text_program.vpMatrix, false, this.projection);
-			//-- static diffuse color --
-			// Set the color to use
-			// gl.uniform4fv(text_program.u_color, [0.2, 1, 0.2, 0]); // green
-		
-			// set the light direction.
-			gl.uniform3fv(text_program.u_reverseLightDirection, [0.5, -0.7, -1]);
-		}
-
-
+		let t = this.get_transform();
+		let p = this.projection;
 
 		//TODO: cull objects outside of view
 		// ! 23-03-03 render needs access to parent
 		this.scene_head.children.forEach(function(ch){
-			ch.is_model_node && ch.draw(lod)
+			ch.is_model_node && ch.draw(lod, t, p)
 			// ch.is_model_node && ch._mdata.render(0)
 		});
 
@@ -410,16 +482,16 @@ const grafx = new function(){
 		// TODO: add copy and decay
 
 		// gl.useProgram(line_program);
-		gl.uniformMatrix4fv(main_program.rtMatrix, false, reverse_transform);
-		gl.uniformMatrix4fv(main_program.vpMatrix, false, this.projection);
+		gl.uniformMatrix4fv(color_program.rtMatrix, false, reverse_transform);
+		gl.uniformMatrix4fv(color_program.vpMatrix, false, this.projection);
 		this._line_buffer.forEach(function(l){
-			// gl.uniformMatrix4fv(main_program.mvMatrix, false, mat4.create());
-			gl.uniform3fv(main_program.position, l.pos);
-			gl.uniform4fv(main_program.orientation, l.orn);
+			// gl.uniformMatrix4fv(color_program.mvMatrix, false, mat4.create());
+			gl.uniform3fv(color_program.position, l.pos);
+			gl.uniform4fv(color_program.orientation, l.orn);
 			gl.bindBuffer(gl.ARRAY_BUFFER, l);
-			gl.vertexAttribPointer(main_program.vertex, 3, gl.FLOAT, false, 0, 0);
+			gl.vertexAttribPointer(color_program.vertex, 3, gl.FLOAT, false, 0, 0);
 			gl.bindBuffer(gl.ARRAY_BUFFER, l.colors);
-			gl.vertexAttribPointer(main_program.color, 4, gl.FLOAT, false, 0, 0);
+			gl.vertexAttribPointer(color_program.color, 4, gl.FLOAT, false, 0, 0);
 			gl.drawArrays(gl.LINES, 0, l.size);
 		})
 		gl.bindBuffer(gl.ARRAY_BUFFER, null);
@@ -530,7 +602,7 @@ const grafx = new function(){
 		// return
 		// console.log("rendering");
 		window.requestAnimFrame(draw_scene, gl_canvas);
-		// if(!main_program.ready){
+		// if(!color_program.ready){
 		// 	gl.flush(); return; }
 
 		scene_manager.render();

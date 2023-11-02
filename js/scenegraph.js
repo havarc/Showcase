@@ -41,7 +41,7 @@ var scene_head = function(){
 	this.gorn = [0,0,0,1];
 }
 scene_head.prototype.get_parent_node = function(){return false;};
-// \/ MARKED FOR REMOVAL! \/
+
 scene_head.prototype.add_child = function(child){
 	// if(!child.is_object_node){
 	// 	console.warn('WARNING: attempted to add invalid child!'); console.trace(); return;
@@ -59,10 +59,11 @@ scene_head.prototype.add_child = function(child){
 
 scene_head.prototype.flush = function(){
 	console.log('scene_head flushing');
-	console.log('before: ', children);
-	let children = this.children.filter(function(ch){
+	console.log('before: ', this.children);
+	let children_filtered = this.children.filter(function(ch){
 		return -1 != ch.get_transform()[15];
 	});
+	this.children = children_filtered;
 	console.log('after: ', children);
 	trajectory_manager.flush();
 };

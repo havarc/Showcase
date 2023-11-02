@@ -1,6 +1,10 @@
-# demo-site
-Small boilerplate 3D Graphics setup using WebGl 2. Does all the goundwork from loading models and shaders to tracking objects and cameras around.  
+# Showcase
+Small boilerplate 3D Graphics setup using WebGl 2. Does all the goundwork from loading models and shaders to tracking objects and cameras around including flexible input assignment. Also creates Widgets with all kinds of content, they can be moved, resized and snap to the window border and each other.
+With all the backend handled, a scene can be setup by simply creating nodes and attaching models to them, see setup-editor.js for details.
+
+Left click moves the camera around, wheel zooms. The 'arrows' button enable moving and resizing the Widgets, the 'left' and 'right' buttons spawn more cars. WASD moves the first car around.
+
 Didn't use three.js because I just like vanilla.js better, together with the learning experience.  
 Of course, this needs some cleanup and and more documentation, but should serve at least at demonstrating that I can work some nice code.  
 
-Working site here: https://havarc.github.io/demo-site/
+Working site here: https://havarc.github.io/Showcase/

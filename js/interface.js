@@ -36,8 +36,6 @@ var gui = new function(){
 		}
 
 		// load widgets
-		// console.log(page_name);
-		// console.log(container);
 		// let widgets = JSON.parse(localStorage.getItem(page_name));
 		// console.log(widgets);
 		settings.widgets.forEach(function(w){new gui.widget(w)});
@@ -45,10 +43,11 @@ var gui = new function(){
 
 	//*
 	this.save_settings = function(){
+		let wlist = document.getElementsByClassName("widget");
 		let t = [];
-		// console.log(container.children);
-		for(let e in container.children){
-			// console.log(e);
+		// console.info(container.children);
+		for(let e of wlist){
+			// console.info(e);
 			let s = {
 				width: e.style.width,
 				height: e.style.height,
@@ -154,10 +153,6 @@ var gui = new function(){
 		// activate widget
 		container.appendChild(wdgt);
 		widget_buffer.set(wdgt.id, wdgt);
-		// console.log(JSON.stringify(wdgt));
-		// console.log(wdgt);
-		// console.log(wdgt.title);
-		// console.log(wdgt.constructor.name);
 		return wdgt;
 	}
 
@@ -315,10 +310,19 @@ var gui = new function(){
 	this.report = function(){
 		console.log(widget_buffer);
 	}
-}();
+};
 
 // widget content factory
 // can be extended from outside
+
+gui.create_text = function(params){
+	params = params || {};
+	let text = params.text;
+	let d = document.createElement('div');
+	d.className = 'text';
+	d.innerHTML = text;
+	return d;
+}
 
 gui.create_button = function(params){
 	params = params || {};
@@ -468,4 +472,4 @@ const input = new function(){
 	this.remove_mousewheel = function(buttons){ mousewheel_events.delete(buttons); }
 
 	this.report = function(){console.log(this);}
-}();
+};

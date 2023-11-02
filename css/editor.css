@@ -113,6 +113,14 @@ canvas {
   overflow: auto;
 }
 
+.text {
+	font-size: 12px;
+	top: 0px;
+	left: 0px;
+	right: 0px;
+	bottom: 0px;
+}
+
 .button {
   position: relative;
   margin: 1px 1px 1px 1px;

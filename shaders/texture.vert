@@ -20,7 +20,7 @@ out vec2 vTexture;
 
 void main(void){
 	vec3 tmp = position + vertex_data + 2.0 * cross( cross( vertex_data, orientation.xyz ) + orientation.w * vertex_data, orientation.xyz );
-	gl_Position = vpMatrix * inverse(rtMatrix) * vec4(tmp, 1.0);
+	gl_Position = vpMatrix * inverse(rtMatrix) * vec4(-tmp, 1.0);
 	// gl_Position = vpMatrix * rtMatrix * mvMatrix * vec4(vertex_data, 1.0);
 
 	vTexture = texture_data;

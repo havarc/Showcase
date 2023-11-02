@@ -15,6 +15,9 @@ shaders/tri_vs.c
 shaders/trix_fs.c
 shaders/trix_vs.c
 
+#tutorial
+js/tutorial.js
+
 # Logs
 logs
 *.log

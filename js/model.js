@@ -12,15 +12,12 @@ function EPSILON(value){
  * TODO: split into meshes and materials
  */
 const model_manager = new function(){
-	let gl;
 	let model_buffer = new Map(); // stored models
-	let requests = new Map();
 	// TODO: keep track of references and remove unused models
 	// TODO: create/load default/error models
 
 	// TODO: use setup or default
 	let sdcnt = 3; // subdivision count
-	let lod = 0; // current level of detail
 
 	// let rg = new Randy(3812951);
 
@@ -92,117 +89,200 @@ const model_manager = new function(){
 
 		// private callback when the model is received
 		async function model_received_json(response){
-			console.log(name);
-			console.log(response);
-			// mdata.name = name;
-			// mdata.lod_buffer = [];
-			// mdata.lod_edge_buffer = [];
-			// mdata.triangle_count = [0,0];
-			// mdata.line_count = [0,0];
-			// mdata.normal_data
-
-			// if(settings.generate_model_normals){
-			// 	mdata_n.triangle_count = [0,0];
-			// 	mdata_n.line_count = [0,0];
-			// }
 			response.name = name
-			process_model(response);
+
+			// normalize normals just in case
+			for (let j = 0; j < response.normal_data.length ; j=j+3) {
+				let vx = response.normal_data[j+0];
+				let vy = response.normal_data[j+1];
+				let vz = response.normal_data[j+2];
+				let vd = Math.sqrt(vx*vx+vy*vy+vz*vz);
+				response.normal_data[j+0] /= vd;
+				response.normal_data[j+1] /= vd;
+				response.normal_data[j+2] /= vd;
+			}
+			generate_edges(response);
+			// TODO error handling
+			response.sdcnt = sdcnt;
+			subdivide.postMessage(response);
 		}
 
-		async function model_received_obj(response){
-			const objPositions = [[]];
-			const objTexcoords = [[]];
-			const objNormals = [[]];
+		// https://webgl2fundamentals.org/webgl/lessons/webgl-load-obj-w-mtl.html
+		async function model_received_obj(text){
+			// because indices are base 1 let's just fill in the 0th data
+			const objPositions = [[0, 0, 0]];
+			const objTexcoords = [[0, 0]];
+			const objNormals = [[0, 0, 0]];
+			const objColors = [[0, 0, 0]];
 
 			// same order as `f` indices
 			const objVertexData = [
 				objPositions,
 				objTexcoords,
 				objNormals,
+				objColors,
 			];
+
 			// same order as `f` indices
 			let webglVertexData = [
 				[],   // positions
 				[],   // texcoords
 				[],   // normals
+				[],   // colors
 			];
- 
-			console.log("Object file received");
-			console.log(response);
+
+			let materialLibs = [];
+			let geometries = [];
+			let geometry;
+			let groups = ['default'];
+			let material = 'default';
+			let object = 'default';
+
+			const noop = () => {};
+
+			function newGeometry() {
+				// If there is an existing geometry and it's
+				// not empty then start a new one.
+				if (geometry && geometry.data.position.length) {
+				geometry = undefined;
+				}
+			}
+
+			function setGeometry() {
+				if (!geometry) {
+				const position = [];
+				const texcoord = [];
+				const normal = [];
+				const color = [];
+				webglVertexData = [
+					position,
+					texcoord,
+					normal,
+					color,
+				];
+				geometry = {
+					object,
+					groups,
+					material,
+					data: {
+					position,
+					texcoord,
+					normal,
+					color,
+					},
+				};
+				geometries.push(geometry);
+				}
+			}
 
 			function addVertex(vert) {
-				// console.log("vert:" + vert)
 				const ptn = vert.split('/');
 				ptn.forEach((objIndexStr, i) => {
-					if (!objIndexStr) {
-						return;
-					}
-					const objIndex = parseInt(objIndexStr);
-					const index = objIndex + (objIndex >= 0 ? 0 : objVertexData[i].length);
-					webglVertexData[i].push(...objVertexData[i][index]);
+				if (!objIndexStr) {
+					return;
+				}
+				const objIndex = parseInt(objIndexStr);
+				const index = objIndex + (objIndex >= 0 ? 0 : objVertexData[i].length);
+				webglVertexData[i].push(...objVertexData[i][index]);
+				// if this is the position index (index 0) and we parsed
+				// vertex colors then copy the vertex colors to the webgl vertex color data
+				if (i === 0 && objColors.length > 1) {
+					geometry.data.color.push(...objColors[index]);
+				}
 				});
 			}
 
 			const keywords = {
 				v(parts) {
-				  objPositions.push(parts.map(parseFloat));
+				// if there are more than 3 values here they are vertex colors
+				if (parts.length > 3) {
+					objPositions.push(parts.slice(0, 3).map(parseFloat));
+					objColors.push(parts.slice(3).map(parseFloat));
+				} else {
+					objPositions.push(parts.map(parseFloat));
+				}
 				},
 				vn(parts) {
-				  objNormals.push(parts.map(parseFloat));
+				objNormals.push(parts.map(parseFloat));
 				},
 				vt(parts) {
-				  objTexcoords.push(parts.map(parseFloat));
+				// should check for missing v and extra w?
+				objTexcoords.push(parts.map(parseFloat));
 				},
 				f(parts) {
-					const numTriangles = parts.length - 2;
-					for (let tri = 0; tri < numTriangles; ++tri) {
-						addVertex(parts[0]);
-						addVertex(parts[tri + 1]);
-						addVertex(parts[tri + 2]);
-					}
+				setGeometry();
+				const numTriangles = parts.length - 2;
+				for (let tri = 0; tri < numTriangles; ++tri) {
+					addVertex(parts[0]);
+					addVertex(parts[tri + 1]);
+					addVertex(parts[tri + 2]);
 				}
-			}
-					   
-			const keywordRE = /(\w*)(?: )*(.*)/;
-			const lines = response.split('\n');
-			for (let lineNo = 0; lineNo < lines.length; ++lineNo) {
-			  const line = lines[lineNo].trim();
-			  if (line === '' || line.startsWith('#')) {
-				continue;
-			  }
-			  const m = line.split(/\s+/);
-			  const keyword = m[0];
-			  const parts = m.slice(1);
-			  const handler = keywords[keyword];
-			//   console.log(m, keyword, parts)
-			  if (!handler) {
-				console.warn('unhandled keyword:', keyword, 'at line', lineNo + 1);
-				continue;
-			  }
-			  handler(parts);
-			}
-			console.log(webglVertexData)
-		  
-		}
-		
-		function process_model(raw_blob){
+				},
+				s: noop,    // smoothing group
+				mtllib(parts, unparsedArgs) {
+				// the spec says there can be multiple filenames here
+				// but many exist with spaces in a single filename
+				materialLibs.push(material_manager.load_material(unparsedArgs));
+				},
+				usemtl(parts, unparsedArgs) {
+				material = unparsedArgs;
+				newGeometry();
+				},
+				g(parts) {
+				groups = parts;
+				newGeometry();
+				},
+				o(parts, unparsedArgs) {
+				object = unparsedArgs;
+				newGeometry();
+				},
+			};
 
-			// normalize normals just in case
-			for (let j = 0; j < raw_blob.normal_data.length ; j=j+3) {
-				let vx = raw_blob.normal_data[j+0];
-				let vy = raw_blob.normal_data[j+1];
-				let vz = raw_blob.normal_data[j+2];
-				let vd = Math.sqrt(vx*vx+vy*vy+vz*vz);
-				raw_blob.normal_data[j+0] /= vd;
-				raw_blob.normal_data[j+1] /= vd;
-				raw_blob.normal_data[j+2] /= vd;
+			const keywordRE = /(\w*)(?: )*(.*)/;
+			const lines = text.split('\n');
+			for (let lineNo = 0; lineNo < lines.length; ++lineNo) {
+				const line = lines[lineNo].trim();
+				if (line === '' || line.startsWith('#')) {
+				continue;
+				}
+				const m = keywordRE.exec(line);
+				if (!m) {
+				continue;
+				}
+				const [, keyword, unparsedArgs] = m;
+				const parts = line.split(/\s+/).slice(1);
+				const handler = keywords[keyword];
+				if (!handler) {
+				console.warn('unhandled keyword:', keyword);  // eslint-disable-line no-console
+				continue;
+				}
+				handler(parts, unparsedArgs);
 			}
-			generate_edges(raw_blob);
-			// TODO error handling
-			raw_blob.sdcnt = sdcnt;
-			// console.log(raw_blob);
-			subdivide.postMessage(raw_blob);
-		}
+
+			// remove any arrays that have no entries.
+			for (const geometry of geometries) {
+				geometry.data = Object.fromEntries(
+					Object.entries(geometry.data).filter(([, array]) => array.length > 0));
+			}
+
+			let model = model_buffer.get(name);
+			console.log(materialLibs);
+			const mat = materialLibs;
+
+
+			Promise.all(materialLibs).then(getdraw);
+
+			console.log(geometries);
+			console.log(materialLibs);
+			console.log(mat);
+			async function getdraw(materialLibs) {
+				console.log(geometries);
+				console.log(materialLibs);
+				console.log(mat);
+				model.render = grafx.generate_obj_render_function(geometries, mat);
+				model.ready = true;
+			}
+	}
 	};
 
 	// subdivide webworker done working
@@ -221,21 +301,15 @@ const model_manager = new function(){
 		model.ready = true;
 	}
 
-	// -- lod interface --
-	this.lod_up = function(){lod = Math.min(sdcnt, lod+1);console.log(lod);};
-	this.lod_down = function(){lod = Math.max(0, lod-1);console.log(lod);};
-
 	// -- model_node prototype export --
 	let mproto = function(args){
 		args.prn && (this.parent_node = args.prn) && this.parent_node.add_child(this);
 		// trajectory_manager.generate_proto.call(this, args);
-		// this._mdata = model_buffer.get(args.mdl) || load_model(args.mdl).then(data=>{this._mdata=data});
-		// this._mdata = model_buffer.get(args.mdl) || load_model(args.mdl);
+		// attach temporary dataset to model node, see mproto.draw
 		this._mdata = load_model(args.mdl);
 		if(args.tex && typeof(args.tex)=="string"){
 			this._texture = texture_manager.load_texture(args.tex)
 		}
-		console.log(this._mdata);
 	}
 
 	// mproto.prototype = Object.create(trajectory_manager.generate_proto.prototype)
@@ -257,70 +331,11 @@ const model_manager = new function(){
 		load_model(this._mdata.name).then(data=>{this._mdata=data});
 	}
 
-	// rendering section
-	// ! Model needs to ask the scene head for the currently active camera
-	// ! then apply its own Vertex Array Object
-	// ! then apply camera settings
-	// todo adjust lod in VAO when hitting the function
-
-	// ! currently not used (mesh is drawn via grafx, see below)
-	/*
-	mproto.prototype.draw_triangles = function(){
-		if (!this._mdata.ready){
-			return;
-		}
-		gl.bindVertexArray(this._mdata.trivao[lod]);
-		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._mdata.lod_buffer[lod]);
-
-		// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.vertex_buffer);
-		// gl.vertexAttribPointer(main_program.vertex, 3, gl.FLOAT, false, 0, 0);
-
-		// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.normal_buffer);
-		// gl.vertexAttribPointer(main_program.normal, 3, gl.FLOAT, false, 0, 0);
-
-		// gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.color_buffer);
-		// gl.vertexAttribPointer(main_program.color, 4, gl.FLOAT, false, 0, 0);
-
-		// gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._mdata.lod_buffer[lod]);
-
-
-		gl.uniform3fv(main_program.position, this.parent_node.gpos);
-		gl.uniform4fv(main_program.orientation, this.parent_node.gorn);
-		gl.uniformMatrix4fv(main_program.mvMatrix, false, this.get_transform());
-		// console.log(this.get_transform())
-
-		// TODO: use drawRangeElements for lod
-		gl.drawElements(gl.TRIANGLES, this._mdata.triangle_count[lod], gl.UNSIGNED_SHORT, 0);
-		gl.bindVertexArray(null);
-	}//*/
-
-	// ! currently not used (mesh is drawn via grafx, see below)
-	/*
-	mproto.prototype.draw_wireframe = function(){
-		gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.vertex_buffer);
-		gl.vertexAttribPointer(main_program.vertex, 3, gl.FLOAT, false, 0, 0);
-
-		gl.bindBuffer(gl.ARRAY_BUFFER, this._mdata.color_buffer);
-		gl.vertexAttribPointer(main_program.color, 4, gl.FLOAT, false, 0, 0);
-
-		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._mdata.lod_edge_buffer[lod]);
-
-		gl.uniform3fv(main_program.position, this.parent_node.gpos);
-		gl.uniform4fv(main_program.orientation, this.parent_node.gorn);
-
-		gl.drawElements(gl.LINES, this._mdata.line_count[lod], gl.UNSIGNED_SHORT, 0);
-		// TODO: use drawRangeElements for lod
-		gl.bindBuffer(gl.ARRAY_BUFFER, null);
-	}//*/
-
-
-	// mproto.prototype.draw = mproto.prototype.draw_wireframe;
-	// mproto.prototype.draw = mproto.prototype.draw_triangles;
-	// mproto.prototype.draw = mproto._mdata.render
 	mproto.prototype.draw = function(){
 		if(this._mdata.ready){
 			console.log("enabling draw");
 			this.draw = this._mdata.render;
+			delete this._mdata;
 		}
 	}
 

@@ -13,14 +13,14 @@ function EPSILON(value){
 // function generate_normal_render_data(data){
 onmessage = function(e){
 	let data = e.data;
-	console.log(e.data);
+	// console.log(e.data);
 	let sdcnt = data.sdcnt;
 	let response = e.data;
 
 	let tl=data.triangle_index.length, tn=tl/3;
 	let el=data.edge_index.length, en=el/2;
 	let vl=data.vertex_data.length, vn=vl/3;
-	console.log(vn, en, tn);
+	// console.log(vn, en, tn);
 
 	let textured = !!data.texture_data;
 
@@ -76,14 +76,14 @@ onmessage = function(e){
 	//*/
 	// cache all edges, then let triangles reconstruct from that
 	let edge_index_cache = [];
-	console.log(edge_index_cache);
-	console.log(data.edge_index);
+	// console.log(edge_index_cache);
+	// console.log(data.edge_index);
 	// push incoming data as layer 0
 	edge_index_cache.push(data.edge_index);
-	console.log(edge_index_cache);
+	// console.log(edge_index_cache);
 	// cache all the triangles
 	let triangle_index_cache = [];
-	console.log(triangle_index_cache);
+	// console.log(triangle_index_cache);
 	// push incoming as layer 0
 	triangle_index_cache.push(new Uint16Array(data.triangle_index));
 
@@ -91,7 +91,7 @@ onmessage = function(e){
 	for(let l = 0; l<sdcnt; l++){
 		// get previous edges
 		let edges = edge_index_cache[l];
-		console.log(l, edges, edge_index_cache);
+		// console.log(l, edges, edge_index_cache);
 		// list of indices where the new vertex for each edge is located
 		// let new_vertex_locations = new Uint16Array(edges.length);
 		// new edges, length is uncertain
@@ -205,8 +205,8 @@ onmessage = function(e){
 
 		// console.log("done triangles");
 
-		console.log(new_edge_cache);
-		console.log(new_triangle_cache);
+		// console.log(new_edge_cache);
+		// console.log(new_triangle_cache);
 		edge_index_cache.push(new_edge_cache);
 		triangle_index_cache.push(new Uint16Array(new_triangle_cache));
 

@@ -60,7 +60,7 @@ const shader_manager = new function(){
 		if(!gl){
 			console.log("getting gl");
 			gl = grafx.get_gl();
-			console.log(gl)
+			// console.log(gl)
 		}
 		// shader is build and set ready when all ajax is through
 		let program = gl.createProgram(); // create the base object
@@ -86,7 +86,7 @@ const shader_manager = new function(){
 			let mainrx = /void\s+main\s*\((?:void)?\)\s*\{/gm;
 			// mainrx.lastindex = 0;
 			if(!mainrx.test(vertex_shader_code)){
-				console.log('include shader recieved on main branch!');
+				console.warning('include shader recieved on main branch!');
 				return;
 			}
 
@@ -109,7 +109,7 @@ const shader_manager = new function(){
 		 * process fragment shader received
 		 * @param {binary} fragment_shader_code
 		 */
-		 async function fragment_shader_received(fragment_shader_code){
+		async function fragment_shader_received(fragment_shader_code){
 			// test for main shader and extract includes
 			let mainrx = /void\s+main\s*\((?:void)?\)\s*\{/gm;
 			// mainrx.lastindex = 0;
@@ -162,7 +162,7 @@ const shader_manager = new function(){
 			}
 			//*/
 
-			console.log('shader: ' + name);
+			// console.log('shader: ' + name);
 
 			// attach fragment shader
 			let fsx = stack.pop();
@@ -189,21 +189,21 @@ const shader_manager = new function(){
 					case 'in':
 						// todo: add matrix attribute handler (?)
 						l = gl.getAttribLocation(program, result[3]);
-						console.log('attribute: '+result[3]+','+l)
+						// console.log('attribute: '+result[3]+','+l)
 						if(0>l)break; // attribute is unused
 						gl.vertexAttribPointer(l, +(result[2].charAt(result[2].length-1)), gl.FLOAT, false, 0, 0);
 						gl.enableVertexAttribArray(l);
 						program[result[3]] = l;
 						break;
 					case 'uniform':
-						console.log('uniform: '+result[3]+','+l)
+						// console.log('uniform: '+result[3]+','+l)
 						l = gl.getUniformLocation(program, result[3]);
 						if(!l && !l===0)break; // uniform is unused
 						// and yes, uniform error is different from attribute
 						program[result[3]] = l;
 						break;
 				}
-				console.log(program);
+				// console.log(program);
 			}
 
 			// tidy up
