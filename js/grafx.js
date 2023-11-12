@@ -260,13 +260,19 @@ const grafx = new function(){
 			gl.enableVertexAttribArray(obj_program.a_position);
 			gl.vertexAttribPointer(obj_program.a_position, 3, gl.FLOAT, false, 0, 0);
 
-			// let normal = gl.createBuffer();
-			// gl.bindBuffer(gl.ARRAY_BUFFER, normal);
-			// gl.bufferData(gl.ARRAY_BUFFER, m.normal, gl.STATIC_DRAW);
-			// gl.enableVertexAttribArray(obj_program.a_normal);
-			// gl.vertexAttribPointer(obj_program.a_normal, 3, gl.FLOAT, false, 0, 0);
+			if(obj_program.a_normal){
+				let normal = gl.createBuffer();
+				gl.bindBuffer(gl.ARRAY_BUFFER, normal);
+				if(m.data.normal && m.data.position.length === m.data.normal.length){
+					gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(m.data.normal), gl.STATIC_DRAW);
+				} else {
+					gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(Array(m.data.position.length).fill(1)), gl.STATIC_DRAW);
+				}
+				gl.enableVertexAttribArray(obj_program.a_normal);
+				gl.vertexAttribPointer(obj_program.a_normal, 3, gl.FLOAT, false, 0, 0);
+			}
 
-			if(m.data.color){
+			if(obj_program.a_color){
 				let color = gl.createBuffer();
 				gl.bindBuffer(gl.ARRAY_BUFFER, color);
 				if(m.data.color && m.data.position.length === m.data.color.length){
@@ -295,9 +301,11 @@ const grafx = new function(){
 
 			// load matrices
 			// TODO use uniform buffer object
+			// camera
 			gl.uniformMatrix4fv(obj_program.rtMatrix, false, transform);
 			gl.uniformMatrix4fv(obj_program.vpMatrix, false, projection);
 
+			// object to draw
 			gl.uniform3fv(obj_program.position, this.parent_node.gpos);
 			gl.uniform4fv(obj_program.orientation, this.parent_node.gorn);
 

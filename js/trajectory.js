@@ -349,6 +349,13 @@ const trajectory_manager = new function(){
 			quat.slerp(orn, orn, tmporn, ms/1000);
 			norm4(rot);
 			norm4(orn);
+			// update position
+			pos[0] += (vel[0] + acc[0]/2)*ms/1000;
+			pos[1] += (vel[1] + acc[1]/2)*ms/1000;
+			pos[2] += (vel[2] + acc[2]/2)*ms/1000;
+			vel[0] += acc[0]*ms/1000;
+			vel[1] += acc[1]*ms/1000;
+			vel[2] += acc[2]*ms/1000;
 			// reset transform matrix
 			tdata[37] = 0; // local
 			tdata[53] = 0; // global

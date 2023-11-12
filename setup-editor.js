@@ -92,13 +92,17 @@ var setup = function(){
 	input.set_keydown('KeyK',function(){model_node.prototype.draw = model_node.prototype.draw_wireframe});
 	input.set_keydown('KeyL',function(){model_node.prototype.draw = model_node.prototype.draw_triangles});
 
-	input.set_keydown('KeyW',function(){tn1.add_position([0,0,1])});
-	input.set_keydown('KeyS',function(){tn1.add_position([0,0,-1])});
-	input.set_keydown('KeyA',function(){tn1.add_position([1,0,0])});
-	input.set_keydown('KeyD',function(){tn1.add_position([-1,0,0])});
+	input.set_keydown('KeyW',function(){tn1.set_velocity([0,0,1])});
+	input.set_keydown('KeyS',function(){tn1.set_velocity([0,0,-1])});
+	input.set_keyup('KeyW',function(){tn1.set_velocity([0,0,0])});
+	input.set_keyup('KeyS',function(){tn1.set_velocity([0,0,0])});
+	input.set_keydown('KeyA',function(){tn1.add_rotation_axan([0,1,0], 1)});
+	input.set_keydown('KeyD',function(){tn1.add_rotation_axan([0,1,0], -1)});
+	input.set_keyup('KeyA',function(){tn1.add_rotation_axan([0,1,0], -1)});
+	input.set_keyup('KeyD',function(){tn1.add_rotation_axan([0,1,0], 1)});
 
 
-	cm.target = mn1;
+	cm.target = tn1;
 
 	// cs.set_rotation_axan([0, 1, 0], 0.2);
 

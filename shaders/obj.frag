@@ -17,7 +17,7 @@ uniform vec3 u_ambientLight;
 out vec4 outColor;
 
 void main () {
-	// vec3 normal = normalize(v_normal);
+	vec3 normal = normalize(v_normal);
 
 	// vec3 surfaceToViewDirection = normalize(v_surfaceToView);
 	// vec3 halfVector = normalize(u_lightDirection + surfaceToViewDirection);
@@ -36,5 +36,10 @@ void main () {
 	// 	effectiveOpacity);
 	// outColor = vec4(1.0,1.0, 0.0, 1.0);
 	// outColor = v_color;
-	outColor = vec4(ambient, 1.0);
+
+	vec3 fake_light = normalize(vec3(1, 1, 1));
+	float diffuse_factor = dot(fake_light, normal) * .5 + .5;
+
+	outColor = vec4(ambient + ambient * diffuse_factor, 1.0);
+	// outColor = vec4(ambient * diffuse_factor, 1.0);
 }

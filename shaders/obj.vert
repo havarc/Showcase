@@ -18,6 +18,7 @@ void main() {
 	gl_Position = vpMatrix * inverse(rtMatrix) * vec4(-tmp, 1.0);
 
 	// v_surfaceToView = u_viewWorldPosition - worldPosition.xyz;
-	// v_normal = mat3(u_world) * a_normal;
+	// v_normal = mat3(rtMatrix) * a_normal;
+	v_normal = a_normal;
 	// v_color = a_color;
 }
