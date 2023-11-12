@@ -17,6 +17,7 @@ const trajectory_manager = new function(){
 	// 18 quat torque (angular acceleration)
 	// 22 mat4 transform local
 	// 38 mat4 transform global
+
 	let set_size = 64;
 
 	let current_index = 0; // index after the last used set
@@ -70,15 +71,15 @@ const trajectory_manager = new function(){
 	});
 	Object.defineProperty(tproto.prototype, 'orn', {
 		get: function(){return this._tdata.subarray( 10, 14);},
-		set: function(args){this._tdata.set(qfill(args.slice(0,3)), 10);}
+		set: function(args){this._tdata.set(qfill(args.slice(0,4)), 10);}
 	});
 	Object.defineProperty(tproto.prototype, 'rot', {
 		get: function(){return this._tdata.subarray( 14,  18);},
-		set: function(args){this._tdata.set(qfill(args.slice(0,3)), 14);}
+		set: function(args){this._tdata.set(qfill(args.slice(0,4)), 14);}
 	});
 	Object.defineProperty(tproto.prototype, 'trq', {
 		get: function(){return this._tdata.subarray( 18,  22);},
-		set: function(args){this._tdata.set(qfill(args.slice(0,3)), 18);}
+		set: function(args){this._tdata.set(qfill(args.slice(0,4)), 18);}
 	});
 
 	Object.defineProperty(tproto.prototype, 'gpos', {
@@ -87,7 +88,7 @@ const trajectory_manager = new function(){
 	});
 	Object.defineProperty(tproto.prototype, 'gorn', {
 		get: function(){return this._tdata.subarray( 60, 64);},
-		set: function(args){this._tdata.set(qfill(args.slice(0,3)), 60);}
+		set: function(args){this._tdata.set(qfill(args.slice(0,4)), 60);}
 	});
 	// setup transform methods
 	// TODO: add methods for camera set
@@ -161,43 +162,10 @@ const trajectory_manager = new function(){
 		if(1 == t[15] || -1 == t[15]) return t; // already filled or infected
 		let p = this.parent_node.get_transform();
 		let v = this.get_local_transform();
-		mat4.scalar.multiply(t, p, v);
+		// mat4.scalar.multiply(t, p, v);
+		mat4.multiply(t, p, v);
 
 		quat.multiply(this.gorn, this.orn, this.parent_node.gorn);
-		// vec3 tmp = position + vertex + 2.0 * cross(cross(vertex, orientation.xyz) + orientation.w * vertex, orientation.xyz );
-		/*
-		out[0] = ay * bz - az * by;
-		out[1] = az * bx - ax * bz;
-		out[2] = ax * by - ay * bx;
-		t1:
-		(vy*oz-vz*oy)
-		(vz*ox-vx*oz)
-		(vx*oy-vy*ox)
-		t2:
-		(ow*vx)
-		(ow*vy)
-		(ow*vz)
-		t3:
-		(t1x+t2x)
-		(t1y+t2y)
-		(t1z+t2z)
-		t4:
-		(((vz*ox-vx*oz)+(ow*vy)) * oz - ((vx*oy-vy*ox)+(ow*vz)) * oy)
-		(((vx*oy-vy*ox)+(ow*vz)) * ox - ((vy*oz-vz*oy)+(ow*vx)) * oz)
-		(((vy*oz-vz*oy)+(ow*vx)) * oy - ((vz*ox-vx*oz)+(ow*vy)) * ox)
-
-		(vz*ox-vx*oz+ow*vy) * oz - (vx*oy-vy*ox+ow*vz) * oy
-		(vx*oy-vy*ox+ow*vz) * ox - (vy*oz-vz*oy+ow*vx) * oz
-		(vy*oz-vz*oy+ow*vx) * oy - (vz*ox-vx*oz+ow*vy) * ox
-
-		vz*ox*oz - vx*oz*oz + ow*vy*oz - vx*oy*oy + vy*ox*oy - ow*vz*oy
-		vx*oy*ox - vy*ox*ox + ow*vz*ox - vy*oz*oz + vz*oy*oz - ow*vx*oz
-		vy*oz*oy - vz*oy*oy + ow*vx*oy - vz*ox*ox + vx*oz*ox - ow*vy*ox
-		t5:
-		t4*2
-		final:
-		t5 + this.pos + this.parent_node.pos
-
 
 		//*/
 		// this.gpos[0] = this.pos[0]*(2*(+oz*ow-oy*ow-oy*oy-oz*oz+ox*oy+ox*oz)+px+1)
@@ -214,20 +182,7 @@ const trajectory_manager = new function(){
 		let vx = this.pos[0];
 		let vy = this.pos[1];
 		let vz = this.pos[2];
-		/*
-		let t1 = new Float32Array(3);
-		let t2 = new Float32Array(3);
-		let t3 = new Float32Array(3);
-		let t4 = new Float32Array(3);
-		let t5 = new Float32Array(3);
-		vec3.cross(t1, this.pos, this.parent_node.gorn);
-		vec3.scale(t2, this.pos, this.parent_node.gorn[3])
-		vec3.add(t3, t2, t1);
-		vec3.cross(t4, t3, this.parent_node.gorn);
-		vec3.scale(t5, t4, 2);
-		vec3.add(this.gpos, this.pos, t5);
-		vec3.add(this.gpos, this.gpos, this.parent_node.gpos);
-		//*/
+
 		// get global position from local and parent pos and orn
 		let rx = vy*oz-vz*oy+ow*vx;
 		let ry = vz*ox-vx*oz+ow*vy;
@@ -238,9 +193,6 @@ const trajectory_manager = new function(){
 			vy+py+2*(rz*ox-rx*oz),
 			vz+pz+2*(rx*oy-ry*ox)
 		]
-		// vec3.add(this.gpos, this.pos, this.parent_node.gpos);
-		// console.log(this.gorn);
-
 
 		return t;
 	};
@@ -275,12 +227,6 @@ const trajectory_manager = new function(){
 		t[8]  = zAxis[0];
 		t[9]  = zAxis[1];
 		t[10] = zAxis[2];
-		//*
-
-
-		//*/
-
-
 		return t;
 	}
 

@@ -1,3 +1,5 @@
+// this file sets up the scene and attached functions
+
 // set page name for setting-autoloaders
 var page_name = 'editor';
 
@@ -40,36 +42,31 @@ var setup = function(){
 	// 	orn: [0, 0, 0, 1],
 	// 	mdl: 'testtri_normals'
 	// });
-	let cv = new object_node({
+	// horizontal camera stick
+	let ch = new object_node({
 		prn: sh1,
 		pos: [0, 0, 0],
 		orn: [0, 0, 0, 1]
-	}); // camera stick
-	let ch = new object_node({
-		prn: cv,
+	}); // vertical camera stick
+	let cv = new object_node({
+		prn: ch,
 		pos: [0, 0, 0],
 		orn: [0, 0, 0, 1]
-	}); // camera stick
+	}); // zoom stick
 	var cn = new object_node({
-		prn: ch,
+		prn: cv,
 		pos: [0, 0, 10],
 		orn: [0, 0, 0, 1]
-	}); // create camera
+	}); // actual camera
 	var cm = new camera_node({
 		prn: cn,
 		pos: [0, 0, 0],
 		orn: [0, 0, 0, 1]
-	}); // create camera
+	});
 
-	console.log(cm)
-	console.log(Object.getPrototypeOf(cm))
-	console.log(Object.getPrototypeOf(Object.getPrototypeOf(cm)))
-
-	ch.add_orientation_axan([1,0,0], 10)
-
-	scene_manager.add_scene_head(sh1); // add scene head to camera for rendering
-	// cn.scene_heads.push(sh1); // add scene head to camera for rendering
-	// cameras.push(cn); // add cam to local cameras
+	// tilt cam up a bit
+	ch.add_orientation_axan([1,0,0], degtorad * 30)
+	ch.add_orientation_axan([0,-1,0], degtorad * 30)
 
 	input.set_keydown('KeyF',function(){input_rotate_cam = !input_rotate_cam;});
 	// input.set_keydown('KeyG',mn3.infect);
@@ -79,21 +76,35 @@ var setup = function(){
 	// input.set_mousedown(2, function(){console.log('buttons');});
 	// input.set_mouseup(1, function(){cs.set_rotation([0,0.2]);});
 	// console.log(cs);
+
+	// mouse moves camera
 	input.set_mousemove(1, function(x,y){
-		cv.add_orientation_axan([0,1,0], x/100)
-		ch.add_orientation_axan([1,0,0], y/100)
+		ch.add_orientation_axan([0,1,0], x/100)
+		cv.add_orientation_axan([1,0,0], y/100)
 	})
-	// input.set_keydown('KeyN',function(){cz.add_orientation_axan([0,0,1], Math.PI/100)});
-	// input.set_keydown('KeyB',function(){cz.add_orientation_axan([0,0,1], -Math.PI/100)});
+
+	// camera zoom
 	input.set_mousewheel(0, function(y){cn.pos[2]+=y/300;})
 
+	// grafix functions
 	input.set_keydown('KeyI',grafx.lod_up);
 	input.set_keydown('KeyO',grafx.lod_down);
 	input.set_keydown('KeyK',function(){model_node.prototype.draw = model_node.prototype.draw_wireframe});
 	input.set_keydown('KeyL',function(){model_node.prototype.draw = model_node.prototype.draw_triangles});
 
-	input.set_keydown('KeyW',function(){tn1.set_velocity([0,0,1])});
-	input.set_keydown('KeyS',function(){tn1.set_velocity([0,0,-1])});
+	// move the object around
+	input.set_keydown('KeyW',function(){
+		let n = [0,0,0];
+		let t = structuredClone(tn1.get_transform());
+		t[12]=t[13]=t[14] = 0;
+		vec3.transformMat4(n, [0,0,1], t)
+		tn1.set_velocity(n)});
+	input.set_keydown('KeyS',function(){
+		let n = [0,0,0];
+		let t = structuredClone(tn1.get_transform());
+		t[12]=t[13]=t[14] = 0;
+		vec3.transformMat4(n, [0,0,-1], t)
+		tn1.set_velocity(n)});
 	input.set_keyup('KeyW',function(){tn1.set_velocity([0,0,0])});
 	input.set_keyup('KeyS',function(){tn1.set_velocity([0,0,0])});
 	input.set_keydown('KeyA',function(){tn1.add_rotation_axan([0,1,0], 1)});

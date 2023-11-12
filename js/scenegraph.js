@@ -15,7 +15,7 @@ const scene_manager = new function(){
 
 	this.render = function(){
 		// render all scene_heads
-		scene_heads.forEach(function(sh){sh.render();});
+		scene_heads.forEach((sh) => {sh.render();});
 	};
 	// TODO: have cameras manage viewports themselves
 	// scene manager will only store total size
@@ -37,9 +37,11 @@ const scene_manager = new function(){
 var scene_head = function(){
 	this.children = [];
 	this.cameras = [];
-	this.gpos = [0,0,0];
-	this.gorn = [0,0,0,1];
+	scene_manager.add_scene_head(this);
 }
+
+scene_head.prototype.gpos = [0,0,0];
+scene_head.prototype.gorn = [0,0,0,1];
 scene_head.prototype.get_parent_node = function(){return false;};
 
 scene_head.prototype.add_child = function(child){
@@ -94,7 +96,7 @@ scene_head.prototype.prepare = function(){
 	// todo: cull and get z, then render
 };
 
-scene_head.prototype.get_transform = function(force_update){
+scene_head.prototype.get_transform = function(){
 	return [1.0, 0.0,0.0,0.0,
 		0.0,1.0,0.0,0.0,
 		0.0,0.0,1.0,0.0,

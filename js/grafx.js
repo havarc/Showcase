@@ -294,7 +294,7 @@ const grafx = new function(){
 
 
 		// return drawing function
-		return function(lod = 0, transform, projection){
+		return function(lod = 0, cam_transform, projection){
 			var defaultmatrix = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
 			gl.useProgram(obj_program);
 			// console.log(this.parent_node.gpos, this.parent_node.gorn);
@@ -302,12 +302,13 @@ const grafx = new function(){
 			// load matrices
 			// TODO use uniform buffer object
 			// camera
-			gl.uniformMatrix4fv(obj_program.rtMatrix, false, transform);
+			gl.uniformMatrix4fv(obj_program.rtMatrix, false, cam_transform);
 			gl.uniformMatrix4fv(obj_program.vpMatrix, false, projection);
 
 			// object to draw
-			gl.uniform3fv(obj_program.position, this.parent_node.gpos);
-			gl.uniform4fv(obj_program.orientation, this.parent_node.gorn);
+			gl.uniformMatrix4fv(obj_program.transform, false, this.parent_node.get_transform());
+			// gl.uniform3fv(obj_program.position, this.parent_node.gpos);
+			// gl.uniform4fv(obj_program.orientation, this.parent_node.gorn);
 
 			for(let p of parts){
 				// console.log(p.mat);
