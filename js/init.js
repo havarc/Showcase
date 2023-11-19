@@ -1,10 +1,16 @@
 
-var settings = JSON.parse(localStorage.getItem(page_name)) || {};
-// allow to set a default if there's nothing in the config
-settings.set_default = function(name, obj){
-	this[name] = this[name] || obj;
-}
+var settings = {};
+if(window.page_name){
+	settings = JSON.parse(localStorage.getItem(page_name)|| "some site");
+	// allow to set a default if there's nothing in the config
+	settings.set_default = function(name, obj){
+		this[name] = this[name] || obj;
+	}
 
+} else {
+	settings.gui = {};
+	settings.widgets = [];
+}
 settings.init = function(){
 	this.track = function(){
 
@@ -19,7 +25,7 @@ window.onload = function() {
 	input.init();
 
 	// run the env-specific setup
-	setup();
+	// setup();
 	// gui loads widgets from local storage
 	gui.init();
 

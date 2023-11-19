@@ -23,6 +23,12 @@ const scene_manager = new function(){
 		scene_heads.forEach(function(sh){sh.change_viewport(w, h);});
 	};
 
+	this.flush = function(w, h){
+		scene_heads.forEach(function(sh){sh.flush();});
+		scene_heads = [];
+
+	};
+
 	this.report = function(){
 		console.log(scene_heads);
 	}
@@ -66,7 +72,7 @@ scene_head.prototype.flush = function(){
 		return -1 != ch.get_transform()[15];
 	});
 	this.children = children_filtered;
-	console.log('after: ', children);
+	console.log('after: ', this.children);
 	trajectory_manager.flush();
 };
 

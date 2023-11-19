@@ -48,7 +48,7 @@ const trajectory_manager = new function(){
 		trajectory_buffer.push(tdata);
 		this._tdata = tdata;
 		this.ready = 0
-		console.log(this);
+		// console.log(this);
 		return null
 	}
 
@@ -311,9 +311,9 @@ const trajectory_manager = new function(){
 
 	// remove all marked datasets
 	this.flush = function(){
-		console.log('before: ' + trajectory_buffer);
+		// console.log('before: ' + trajectory_buffer);
 		trajectory_buffer = trajectory_buffer.filter(function(traj){return (-1 != traj[53]);});
-		console.log('after: ' + trajectory_buffer);
+		// console.log('after: ' + trajectory_buffer);
 	};
 
 	input.set_keydown('KeyM',function(){console.log(trajectory_buffer)});

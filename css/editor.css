@@ -69,7 +69,7 @@ canvas {
 
 .widget-east-handle{
   height: 100%;
-  width: 2px;
+  width: 3px;
   right: 0px;
   float: right;
   background-color: red;
@@ -78,7 +78,7 @@ canvas {
 
 .widget-west-handle{
   height: 100%;
-  width: 2px;
+  width: 3px;
   left: 0px;
   float: left;
   background-color: red;
@@ -86,7 +86,7 @@ canvas {
 }
 
 .widget-north-handle{
-  height: 2px;
+  height: 3px;
   width: 100%;
   top: 0px;
   background-color: green;
@@ -94,7 +94,7 @@ canvas {
 }
 
 .widget-south-handle{
-  height: 2px;
+  height: 3px;
   width: 100%;
   bottom: 0px;
   background-color: green;

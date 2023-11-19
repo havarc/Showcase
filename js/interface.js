@@ -12,7 +12,8 @@ var gui = new function(){
 	// TODO: put canvas into widget?
 	// TODO: put widget in front when focused
 	// var container = document.getElementById('widget-container');
-	let container = document.getElementById('main');
+	// let container = document.getElementById('main');
+	let container;
 	let widget_buffer = new Map();
 	let active_widget;
 	let x_origin, y_origin; // movement origin
@@ -27,6 +28,7 @@ var gui = new function(){
 	this.init = function(){
 		snapdist = settings.gui.snapdist || snapdist;
 		container = document.getElementById('main');
+		// for mousedown on handlebars
 		container.addEventListener('mouseup', c_onmouseup);
 		// find handlebar css
 		let ss = document.styleSheets[0].cssRules;
@@ -38,7 +40,47 @@ var gui = new function(){
 		// load widgets
 		// let widgets = JSON.parse(localStorage.getItem(page_name));
 		// console.log(widgets);
+		// default code widget
+		let c = {
+			name: 'code',
+			width: '500px', height: '500px',
+			top: '200px', left: '0px',
+			title: 'Code',
+			content: [
+				{	type: 'dropdown',	options:[{option: "car.js", name:"car"}], select:load_setup	},
+				{	type: 'linebreak'},
+				{	type: 'code',	lines: 20, columns: 50, text: 'something', id: "code_field"	},
+				{	type: 'linebreak'},
+				{	type: 'button',	icon: 'play', click: load_setup	},
+				{	type: 'text',	text: 'button loads the scene'	}
+			]
+		};
+
+		new gui.widget(c);
+		get("scenes/car.js").then(setup_received);
 		settings.widgets.forEach(function(w){new gui.widget(w)});
+
+		function load_setup (params){
+			let t = params.target;
+			let v = t.value;
+			if(!v){return false;}
+			get("scenes/" +v).then(setup_received);
+		}
+
+		function setup_received(response){
+			let d = document.getElementById("code_field");
+			d.value = response;
+		}
+
+		function load_setup (){
+			trajectory_manager.flush();
+			scene_manager.flush();
+			gui.flush();
+			let d = document.getElementById("code_field");
+			// console.log(d.value);
+			eval(d.value)
+			grafx.resize_canvas();
+		}
 	}
 
 	//*
@@ -307,6 +349,20 @@ var gui = new function(){
 		active_widget = null;
 	}
 
+	this.flush = function(){
+		widget_buffer.forEach(f);
+		console.log(widget_buffer);
+
+		function f(v, k, m){
+			if(k == "code") return;
+			let e = document.getElementById(k);
+			console.log(e);
+			e.remove();
+			widget_buffer.delete(k);
+
+		}
+	}
+
 	this.report = function(){
 		console.log(widget_buffer);
 	}
@@ -315,6 +371,61 @@ var gui = new function(){
 // widget content factory
 // can be extended from outside
 
+gui.create_linebreak = function(params){
+	params = params || {};
+	let d = document.createElement('br');
+	return d;
+}
+
+gui.create_dropdown = function(params){
+	params = params || {};
+	let options = params.options ||[];
+	let d = document.createElement('select');
+	d.setAttribute("type", "text");
+	// d.setAttribute("height", params.lines*20 || 20)
+	// d.setAttribute("value", text)
+	for(let s of options){
+		let z = document.createElement("option");
+		z.setAttribute("value", s.option);
+		let t = document.createTextNode(s.name);
+		z.appendChild(t);
+		d.append(z);
+	}
+
+	//on select
+	let clk = params.select;
+	if(typeof clk !== 'function')
+		// try to resolve function name, then try again
+		clk = str2ref(clk);
+	if(typeof clk !== 'function'){
+		alert('function ' + clk + ' for button ' + params.icon + ' not found ');
+	} else {
+		d.addEventListener('mousedown', clk)
+	}
+
+	d.className = 'input';
+	// d.innerHTML = text;
+	return d;
+}
+
+// code field for execution
+gui.create_code = function(params){
+	params = params || {};
+	let text = params.text;
+	let d = document.createElement('textarea');
+	d.setAttribute("id", params.id);
+	// d.style.height = (params.lines|| 1) *20 + "px";
+	d.setAttribute("type", "text");
+	// d.setAttribute("height", params.lines*20 || 20)
+	d.setAttribute("cols", (params.columns|| 20))
+	d.setAttribute("rows", (params.lines|| 1))
+	d.setAttribute("value", text)
+	d.className = 'input';
+	d.innerHTML = text;
+	return d;
+}
+
+// field with description text
 gui.create_text = function(params){
 	params = params || {};
 	let text = params.text;
@@ -324,6 +435,7 @@ gui.create_text = function(params){
 	return d;
 }
 
+// button with function
 gui.create_button = function(params){
 	params = params || {};
 	let btn = document.createElement('div');
@@ -340,6 +452,7 @@ gui.create_button = function(params){
 	return btn;
 }
 
+// websocket connection
 gui.create_websocket = function(params){
 	params = params || {};
 	// websocket handling
