@@ -44,7 +44,7 @@ const shader_manager = new function(){
 
 	// public function for requesting a shader resource
 	// returns a program with a 'ready' attribute that is set when the shader finished building
-	this.request_shader = this.get_shader = function(name){
+	this.request_shader = this.get_shader  = this.get = function(name){
 		if(!shader_cache.get(name) || !gl.isProgram(shader_cache.get(name)))
 			return this.reload_shader(name);
 		return shader_cache.get(name);

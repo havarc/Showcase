@@ -1,4 +1,4 @@
-console.log("loading car");
+console.log("loading plushy");
 
 var mn3;
 var cs; // camera stick
@@ -16,8 +16,21 @@ var tn1 = new object_node({
 })
 var mn1 = new model_node({
 	prn: tn1,
-	file: 'car2.obj'
+	file: 'texttri.json'
 });
+mn1.billboard = true;
+
+var tn2 = new object_node({
+	prn: tn1,
+	pos: [0, 2, 0],
+	orn: [0, 0, 0, 1]
+})
+var mn2 = new model_node({
+	prn: tn2,
+	file: 'testtri.json'
+});
+
+
 // horizontal camera stick
 let ch = new object_node({
 	prn: sh1,
@@ -39,6 +52,15 @@ var cm = new camera_node({
 	pos: [0, 0, 0],
 	orn: [0, 0, 0, 1]
 });
+
+let circleTex = texture_manager.load_texture("circle.png") 
+var cc = new object_node({
+	prn: sh1,
+	pos: [0, 0, 0],
+	orn: [0, 0, 0, 1]
+})
+cc.draw = grafx.generate_billboard_render_function(circleTex);
+cc.is_model_node = true;
 
 
 // tilt cam up a bit
@@ -63,24 +85,14 @@ input.set_keydown('KeyK',function(){model_node.prototype.draw = model_node.proto
 input.set_keydown('KeyL',function(){model_node.prototype.draw = model_node.prototype.draw_triangles});
 
 // move the object around
-input.set_keydown('KeyW',function(){
-	let n = [0,0,0];
-	let t = structuredClone(tn1.get_transform());
-	t[12]=t[13]=t[14] = 0;
-	vec3.transformMat4(n, [0,0,1], t)
-	tn1.set_velocity(n)});
-input.set_keydown('KeyS',function(){
-	let n = [0,0,0];
-	let t = structuredClone(tn1.get_transform());
-	t[12]=t[13]=t[14] = 0;
-	vec3.transformMat4(n, [0,0,-1], t)
-	tn1.set_velocity(n)});
-input.set_keyup('KeyW',function(){tn1.set_velocity([0,0,0])});
-input.set_keyup('KeyS',function(){tn1.set_velocity([0,0,0])});
-input.set_keydown('KeyA',function(){tn1.add_rotation_axan([0,1,0], 1)});
-input.set_keydown('KeyD',function(){tn1.add_rotation_axan([0,1,0], -1)});
-input.set_keyup('KeyA',function(){tn1.add_rotation_axan([0,1,0], -1)});
-input.set_keyup('KeyD',function(){tn1.add_rotation_axan([0,1,0], 1)});
+input.set_keydown('KeyW',function(){tn2.set_velocity([-1,0,0])});
+input.set_keydown('KeyS',function(){tn2.set_velocity([1,0,0])});
+input.set_keyup('KeyW',function(){tn2.set_velocity([0,0,0])});
+input.set_keyup('KeyS',function(){tn2.set_velocity([0,0,0])});
+input.set_keydown('KeyA',function(){tn2.set_velocity([0,0,-1])});
+input.set_keydown('KeyD',function(){tn2.set_velocity([0,0,1])});
+input.set_keyup('KeyA',function(){tn2.set_velocity([0,0,0])});
+input.set_keyup('KeyD',function(){tn2.set_velocity([0,0,0])});
 
 
 cm.target = tn1;
@@ -101,7 +113,7 @@ function load_cars_left(){
 	})
 	var mn3 = new model_node({
 		prn: tn2,
-		file: 'car2.obj'
+		mdl: 'car2.obj'
 	});
 
 }
@@ -115,7 +127,7 @@ function load_cars_right(){
 	})
 	var mn3 = new model_node({
 		prn: tn2,
-		file: 'car2.obj'
+		mdl: 'car2.obj'
 	});
 
 }
@@ -140,7 +152,7 @@ let w2 = {
 	top: '12px', left: '400px',
 	title: 'Help',
 	content: [
-		{	type: 'text', text: "Welcome, </br>Left click moves the camera around, wheel zooms. The 'arrows' button enable moving and resizing the Widgets, the 'left' and 'right' buttons spawn more cars.  WASD moves the first car around." },
+		{	type: 'text', text: "Welcome, </br>This is a texture demo." },
 	]
 };
 

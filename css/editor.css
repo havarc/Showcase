@@ -1,7 +1,3 @@
-html {
-  /*height: 100%;*/
-}
-
 body {
   margin: 0;
   font-family: Helvetica, Arial, FreeSans, sans-serif;
@@ -27,7 +23,7 @@ body {
 
 canvas {
   width: 100%;
-  height: 100%;
+  height: 99%;
   /*z-index: 5;*/
 }
 

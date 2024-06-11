@@ -19,14 +19,6 @@ out vec3 vNormal;
 out vec4 vColor;
 
 void main(void){
-
-	vec3 tmp = position + vertex_data + 2.0 * cross( cross( vertex_data, orientation.xyz) + orientation.w * vertex_data, orientation.xyz);
-
-	gl_Position = vpMatrix * inverse(rtMatrix) * vec4(-tmp, 1.0);
-	// gl_Position = vpMatrix * rtMatrix * mvMatrix * vec4(vertex_data, 1.0);
-
-
-	vNormal = inverse(mat3(rtMatrix)) * normal_data;
-
-	vColor = color_data;
+	// positions are given by the rendering function, just draw them
+	gl_Position = vec4(vertex_data, 1.0);
 }

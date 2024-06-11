@@ -41,46 +41,6 @@ var gui = new function(){
 		// let widgets = JSON.parse(localStorage.getItem(page_name));
 		// console.log(widgets);
 		// default code widget
-		let c = {
-			name: 'code',
-			width: '500px', height: '500px',
-			top: '200px', left: '0px',
-			title: 'Code',
-			content: [
-				{	type: 'dropdown',	options:[{option: "car.js", name:"car"}], select:load_setup	},
-				{	type: 'linebreak'},
-				{	type: 'code',	lines: 20, columns: 50, text: 'something', id: "code_field"	},
-				{	type: 'linebreak'},
-				{	type: 'button',	icon: 'play', click: load_setup	},
-				{	type: 'text',	text: 'button loads the scene'	}
-			]
-		};
-
-		new gui.widget(c);
-		get("scenes/car.js").then(setup_received);
-		settings.widgets.forEach(function(w){new gui.widget(w)});
-
-		function load_setup (params){
-			let t = params.target;
-			let v = t.value;
-			if(!v){return false;}
-			get("scenes/" +v).then(setup_received);
-		}
-
-		function setup_received(response){
-			let d = document.getElementById("code_field");
-			d.value = response;
-		}
-
-		function load_setup (){
-			trajectory_manager.flush();
-			scene_manager.flush();
-			gui.flush();
-			let d = document.getElementById("code_field");
-			// console.log(d.value);
-			eval(d.value)
-			grafx.resize_canvas();
-		}
 	}
 
 	//*
@@ -408,6 +368,34 @@ gui.create_dropdown = function(params){
 	return d;
 }
 
+gui.create_number = function(params = {}){
+	console.log("interface: number");
+	// params = params || {};
+	let options = params.options ||[];
+	let d = document.createElement('input');
+	d.setAttribute("type", "number");
+	// d.setAttribute("type", "text");
+	d.setAttribute("min", params.min || 1);
+	d.setAttribute("max", params.max || 10);
+	d.setAttribute("step", params.step || 1);
+	d.setAttribute("value", params.value || 1);
+
+	//on select
+	let clk = params.click;
+	if(typeof clk !== 'function')
+		// try to resolve function name, then try again
+		clk = str2ref(clk);
+	if(typeof clk !== 'function'){
+		alert('function ' + clk + ' for button ' + params.icon + ' not found ');
+	} else {
+		d.addEventListener('input', clk)
+	}
+
+	// d.className = 'input';
+	// d.innerHTML = text;
+	return d;
+}
+
 // code field for execution
 gui.create_code = function(params){
 	params = params || {};
@@ -499,12 +487,15 @@ const input = new function(){
 		// cc = document.body;
 		// input is going to canvas only
 		// TODO: adjust when canvas gets its own widget
-		cc = document.getElementById('main');
+		cc = document.body;
+		// cc = document.getElementById('main');
 		// mouse is caught by highest z-index
 		// cc = document.getElementById('widget-container');
 		// console.log(cc);
 		// cc.addEventListener('onkeydown', key_down);
 		// cc.addEventListener('onkeyup', key_up);
+		// cc.onclick = mouse_click;
+		cc.ondblclick = mouse_dblclick;
 		cc.onmousedown = mouse_down;
 		cc.onmouseup = mouse_up;
 		cc.onmouseenter = mouse_enter;
@@ -512,6 +503,7 @@ const input = new function(){
 		cc.onmousemove = mouse_move;
 		cc.onwheel = mouse_wheel;
 	}
+
 
 	// keyboard
 	let keydown_events = new Map();
@@ -542,14 +534,26 @@ const input = new function(){
 	this.remove_keyup = function(key){ keyup_events.delete(key); }
 
 	// mouse
-	let mousedown_events = [];
+	// let mouseclick_events; //click is more for pointers
+	let mousedblclick_events = [];
+	// let mousedown_events = [];
+	let mousedown_events = new Map;
 	let mouseup_events = [];
 	let mousemove_events = [];
 	let mousewheel_events = [];
 	let mstop = false;
+	// function mouse_click(evnt){
+	// 	mouseclick_events && mouseclick_events();
+	// 	return true;
+	// }
+	function mouse_dblclick(evnt){
+		mousedblclick_events[evnt.buttons] && mousedblclick_events[evnt.buttons](evnt);
+		return true;
+	}
 	function mouse_down(evnt){
-		mousedown_events[evnt.button] && mousedown_events[evnt.button]();
-		mouseup_events[evnt.button] && (mstop = mouseup_events[evnt.button]);
+		// TODO: disassemble buttons (binary)
+		mousedown_events[evnt.buttons] && mousedown_events[evnt.buttons](evnt);
+		mouseup_events[evnt.buttons] && (mstop = mouseup_events[evnt.buttons]);
 		return true;
 	}
 	function mouse_up(evnt){
@@ -565,6 +569,9 @@ const input = new function(){
 		return true;
 	}
 	function mouse_move(evnt){
+		// for movement arrow
+		input.mouseX = evnt.clientX;
+		input.mouseY = evnt.clientY;
 		mousemove_events[evnt.buttons] && mousemove_events[evnt.buttons](evnt.movementX, evnt.movementY);
 		return true;
 	}
@@ -575,14 +582,31 @@ const input = new function(){
 
 	// mouse functions
 	// TODO: add interface for buttons pressed
-	this.set_mousedown = function(buttons, func){ mousedown_events[buttons] = func; }
-	this.set_mouseup   = function(buttons, func){ mouseup_events[buttons] = func; }
-	this.set_mousemove = function(buttons, func){ mousemove_events[buttons] = func; }
-	this.set_mousewheel = function(buttons, func){ mousewheel_events[buttons] = func; }
-	this.remove_mousedown = function(buttons){ mousedown_events.delete(buttons); }
-	this.remove_mouseup   = function(buttons){ mouseup_events.delete(buttons); }
-	this.remove_mousemove = function(buttons){ mousemove_events.delete(buttons); }
-	this.remove_mousewheel = function(buttons){ mousewheel_events.delete(buttons); }
+	// this.set_mouseclick    = function(func){ mouseclick_events = func; console.log("registered")}
+	this.set_mousedblclick = function(buttons, func){ mousedblclick_events[buttons] = func;}// console.log("registered");}
+	this.set_mousedown     = function(buttons, func){ mousedown_events[buttons] = func; }
+	this.set_mouseup       = function(buttons, func){ mouseup_events[buttons] = func; }
+	this.set_mousemove     = function(buttons, func){ mousemove_events[buttons] = func; }
+	this.set_mousewheel    = function(buttons, func){ mousewheel_events[buttons] = func; }
+	// this.remove_mouseclick    = function(buttons){ mouseclick_events = 0; }
+	this.remove_mousedblclick = function(buttons){ mousedblclick_events.delete(buttons); }
+	this.remove_mousedown     = function(buttons){ mousedown_events.delete(buttons); }
+	this.remove_mouseup       = function(buttons){ mouseup_events.delete(buttons); }
+	this.remove_mousemove     = function(buttons){ mousemove_events.delete(buttons); }
+	this.remove_mousewheel    = function(buttons){ mousewheel_events.delete(buttons); }
 
-	this.report = function(){console.log(this);}
+	this.report = function(){
+		console.log(this);
+		console.log(keydown_events);
+		console.log(keyup_events);
+		console.log(mousedblclick_events);
+		console.log(mousedown_events);
+		console.log(mouseup_events);
+		console.log(mousemove_events);
+		console.log(mousewheel_events);
+	}
+
+	this.spec_call = function(){
+		mousedown_events[1]("report");
+	}
 };

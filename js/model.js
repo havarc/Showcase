@@ -5,6 +5,7 @@ function EPSILON(value){
 	return isNaN(value) || 0.0000001 > Math.abs(value);
 }
 
+
 /**
  * @module models
  * @exports model node prototype
@@ -58,8 +59,6 @@ const model_manager = new function(){
 		data.edge_index = edge_index_cache;
 	}
 
-
-
 	// -- private function for loading a model resource --
 	// TODO: there's a shortcut to this
 	function load_model(name){
@@ -90,21 +89,40 @@ const model_manager = new function(){
 		// private callback when the model is received
 		async function model_received_json(response){
 			response.name = name
+			let model = model_buffer.get(response.name);
 
-			// normalize normals just in case
-			for (let j = 0; j < response.normal_data.length ; j=j+3) {
-				let vx = response.normal_data[j+0];
-				let vy = response.normal_data[j+1];
-				let vz = response.normal_data[j+2];
-				let vd = Math.sqrt(vx*vx+vy*vy+vz*vz);
-				response.normal_data[j+0] /= vd;
-				response.normal_data[j+1] /= vd;
-				response.normal_data[j+2] /= vd;
+			if(response.texture_data){
+				model.stex = texture_manager.load_texture(response.texture);
 			}
-			generate_edges(response);
-			// TODO error handling
-			response.sdcnt = sdcnt;
-			subdivide.postMessage(response);
+
+			if(response.triangle_index){ // solid mesh received
+
+				// normalize normals just in case
+				for (let j = 0; j < response.normal_data.length ; j=j+3) {
+					let vx = response.normal_data[j+0];
+					let vy = response.normal_data[j+1];
+					let vz = response.normal_data[j+2];
+					let vd = Math.sqrt(vx*vx+vy*vy+vz*vz);
+					response.normal_data[j+0] /= vd;
+					response.normal_data[j+1] /= vd;
+					response.normal_data[j+2] /= vd;
+				}
+				generate_edges(response);
+				// TODO error handling
+				response.sdcnt = sdcnt;
+				
+				subdivide.postMessage(response);
+				return;
+			}
+
+			if(response.shader && response.mode){ // shader and mode defined
+				// let model = model_buffer.get(response.name);
+				// console.log("subdivider finished "+response.name);
+				// response.stex = model.stex;
+				model.render = grafx.generate_custom_render_function(response);
+				model.ready = true;
+				return;
+			}
 		}
 
 		// https://webgl2fundamentals.org/webgl/lessons/webgl-load-obj-w-mtl.html
@@ -282,7 +300,7 @@ const model_manager = new function(){
 				model.render = grafx.generate_obj_render_function(geometries, mat);
 				model.ready = true;
 			}
-	}
+		}
 	};
 
 	// subdivide webworker done working
@@ -290,35 +308,42 @@ const model_manager = new function(){
 		let response = e.data;
 		let model = model_buffer.get(response.name);
 		console.log("subdivider finished "+response.name);
-		if(response.texture_data){
-			let tex = texture_manager.load_texture(response.texture);
-			console.log(tex);
-			model.render = grafx.generate_textured_render_function(response, tex);
-		} else {
-			model.render = grafx.generate_colored_render_function(response);
-		}
-
+		response.stex = model.stex;
+		model.render = grafx.generate_render_function(response);
 		model.ready = true;
 	}
 
 	// -- model_node prototype export --
-	let mproto = function(args){
+	let mproto = function(args = {}){
+		this.args = args;
 		args.prn && (this.parent_node = args.prn) && this.parent_node.add_child(this);
 		// trajectory_manager.generate_proto.call(this, args);
 		// attach temporary dataset to model node, see mproto.draw
-		this._mdata = load_model(args.mdl);
-		if(args.tex && typeof(args.tex)=="string"){
-			this._texture = texture_manager.load_texture(args.tex)
-		}
+		this._mdata = load_model(args.file);
+		// if(args.tex && typeof(args.tex)=="string"){
+		// 	this._texture = texture_manager.load_texture(args.tex)
+		// }
 	}
 
 	// mproto.prototype = Object.create(trajectory_manager.generate_proto.prototype)
 
 	mproto.prototype.is_model_node = true
-	mproto.prototype.visible = function(){return true;};
+	// mproto.prototype.visible = function(){return true;};
+	mproto.prototype.visible = true;
 	// TODO: cull check by trajectory_manager
 	mproto.prototype.get_transform = function(){
-		return this.parent_node.get_transform();
+		if(this.billboard){
+			console.log("Hello billboard");
+			let transform = this.parent_node.get_transform();
+
+			// transform[0] = transform[1] = transform[2] = 0.0;
+			// transform[4] = transform[5] = transform[6] = 0.0;
+			// transform[8] = transform[9] = transform[10] = 0.0;
+			return transform;
+		}
+		else{
+			return this.parent_node.get_transform();
+		}
 	};
 	mproto.prototype.get_local_transform = function(){
 		return [1.0, 0.0,0.0,0.0,
@@ -351,5 +376,7 @@ const model_manager = new function(){
 		model_buffer = new Map();
 	};
 };
+
+
 
 

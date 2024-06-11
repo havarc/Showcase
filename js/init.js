@@ -1,4 +1,3 @@
-
 var settings = {};
 if(window.page_name){
 	settings = JSON.parse(localStorage.getItem(page_name)|| "some site");
@@ -24,10 +23,49 @@ window.onload = function() {
 	grafx.init();
 	input.init();
 
-	// run the env-specific setup
-	// setup();
 	// gui loads widgets from local storage
 	gui.init();
+
+	let c = {
+		name: 'code',
+		width: '500px', height: '500px',
+		top: '200px', left: '0px',
+		title: 'Code',
+		content: [
+			{	type: 'dropdown',	options:[{option: "bb.js", name:"spaceship"}, {option: "car.js", name:"car"}, {option: "plushy.js", name:"plushy"}], select:load_setup	},
+			{	type: 'linebreak'},
+			{	type: 'code',	lines: 20, columns: 50, text: 'something', id: "code_field"	},
+			{	type: 'linebreak'},
+			{	type: 'button',	icon: 'play', click: display_setup	},
+			{	type: 'text',	text: 'button loads the scene'	}
+		]
+	};
+
+	new gui.widget(c);
+	get("scenes/bb.js").then(setup_received);
+	// settings.widgets.forEach(function(w){new gui.widget(w)});
+
+	function load_setup (params){
+		let t = params.target;
+		let v = t.value;
+		if(!v){return false;}
+		get("scenes/" +v).then(setup_received);
+	}
+
+	function setup_received(response){
+		let d = document.getElementById("code_field");
+		d.value = response;
+	}
+
+	function display_setup (){
+		trajectory_manager.flush();
+		scene_manager.flush();
+		gui.flush();
+		let d = document.getElementById("code_field");
+		// console.log(d.value);
+		eval(d.value)
+		grafx.resize_canvas();
+	}
 
 	window.onresize=grafx.resize_canvas;
 	grafx.resize_canvas();

@@ -11,10 +11,9 @@ function EPSILON(value){
  */
 const texture_manager = new function(){
 	let texture_buffer = new Map();
-	let xdata;
 	
 	this.load_texture = function(name){
-		if(!name || name.length < 4) return null;
+		if(!name || name.length < 4) return grafx.whitePixel;
 		let xdata = texture_buffer.get(name);
 		if(xdata){return xdata;}
 

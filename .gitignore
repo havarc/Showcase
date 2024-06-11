@@ -8,6 +8,8 @@
 myServer/
 Greenlock/
 package.json
+# omit deprecated
+deprecated/
 
 # experimental shader files
 shaders/tri_fs.c

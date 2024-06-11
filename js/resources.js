@@ -5,11 +5,17 @@
   * loads and manages textures
   */
 const texture_manager = new function(){
-	let self = {};
 	let buffers = {};
 
+	// dummy texture, always available
+	let gl = grafx.get_gl();
+	let whiteTexture = gl.createTexture();
+	gl.bindTexture(gl.TEXTURE_2D, whiteTexture);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));	
+	gl.bindTexture(gl.TEXTURE_2D, whiteTexture);
+
 	// creates a buffer from a stacked array, needs iOffset & iLength
-	self.buffer_from_item_set = function(bufferdata, params){
+	this.buffer_from_item_set = function(bufferdata, params){
 		params = params || {};
 		let item_offset = params.i_offset = params.i_offset || 0; // starting position within an item
 		let item_length = params.i_length = params.i_length || 1;
@@ -28,7 +34,7 @@ const texture_manager = new function(){
 
 	// create a buffer from data
 	// not passing bLength will pull all data from offset to end of buffer
-	self.buffer = function(bufferdata, params){
+	this.buffer = function(bufferdata, params){
 		params = params || {};
 		let item_offset = params.i_offset || 0;
 		let item_length = params.i_length || 0;
@@ -51,14 +57,14 @@ const texture_manager = new function(){
 		return bid;
 	};
 
-	self.set_attribute_buffer = function(pointer, bid, params){
+	this.set_attribute_buffer = function(pointer, bid, params){
 		// todo: compare shader-atrribute size to buffer item size and console.error before the shader throws it
 		gl.bindBuffer(gl.ARRAY_BUFFER, buffers[bid]);
 		gl.vertexAttribPointer(pointer, buffers[bid].item_size, gl.FLOAT, false, 0, 0);
 	};
 
 
-	self.delete_buffer = function(bid){
+	this.delete_buffer = function(bid){
 		if(buffers[bid]){
 			gl.deleteBuffer(buffers.bid);
 			delete buffers.bid;
@@ -76,3 +82,4 @@ const texture_manager = new function(){
 
 	return self;
 };
+

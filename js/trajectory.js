@@ -26,6 +26,7 @@ const trajectory_manager = new function(){
 	let trajectory_buffer = [];
 
 	// trajectory prototype, object node
+	// TODO: remove trq, gpos, gorn
 	let tproto = function(args){
 		if(!args.prn){
 			console.error("node has no parent")
@@ -36,6 +37,7 @@ const trajectory_manager = new function(){
 		tdata.fill(0);
 		tdata[0] = current_index;
 		current_index++;
+		// tdata[10] = tdata[14] = tdata[18] = 1;
 		tdata[13] = tdata[17] = tdata[21] = 1;
 		// TODO: test for number array
 		args.pos && tdata.set(args.pos,  1);
@@ -43,13 +45,14 @@ const trajectory_manager = new function(){
 		args.acc && tdata.set(args.acc,  7);
 		args.orn && tdata.set(norm4(args.orn), 10);
 		args.rot && tdata.set(norm4(args.rot), 14);
-		args.trq && tdata.set(norm4(args.trq), 18);
+		// args.trq && tdata.set(norm4(args.trq), 18);
 		args.prn && (this.parent_node = args.prn) && this.parent_node.add_child(this);
 		trajectory_buffer.push(tdata);
 		this._tdata = tdata;
 		this.ready = 0
+		console.log(tdata);
 		// console.log(this);
-		return null
+		// return null
 	}
 
 	// let vecproto;
@@ -83,12 +86,22 @@ const trajectory_manager = new function(){
 	});
 
 	Object.defineProperty(tproto.prototype, 'gpos', {
-		get: function(){return this._tdata.subarray( 55,  58);},
-		set: function(args){this._tdata.set(args.slice(0,3), 55);}
+		get: function(){
+			let t = this.get_transform();
+			return(t.subarray(12, 15));
+			// return(this._tdata.subarray(50, 53));
+		}
 	});
 	Object.defineProperty(tproto.prototype, 'gorn', {
-		get: function(){return this._tdata.subarray( 60, 64);},
-		set: function(args){this._tdata.set(qfill(args.slice(0,4)), 60);}
+		get: function(){
+			// data has to be updated before use
+			let t = this.get_transform();
+			let q = glMatrix.quat.create();
+			let m3 = glMatrix.mat3.create();
+			glMatrix.mat3.fromMat4(m3, this._tdata.subarray(38, 54));
+			glMatrix.quat.fromMat3(q, m3)
+			return q;
+		}
 	});
 	// setup transform methods
 	// TODO: add methods for camera set
@@ -122,9 +135,9 @@ const trajectory_manager = new function(){
 	tproto.prototype.set_orientation_axan = function(ax, an){
 		this.orn.set(quat_from_axan(ax, an));}
 	tproto.prototype.add_orientation_quat = function(q){
-		quat.multiply(this.orn, this.orn, qfill(q.slice(0,3)));}
+		glMatrix.quat.multiply(this.orn, this.orn, qfill(q.slice(0,3)));}
 	tproto.prototype.add_orientation_axan = function(ax, an){
-		quat.multiply(this.orn, this.orn, quat_from_axan(ax, an));}
+		glMatrix.quat.multiply(this.orn, this.orn, quat_from_axan(ax, an));}
 	tproto.prototype.clr_orientation = function(){
 		this.orn.set([0,0,0,1]);}
 	// rotation quat
@@ -133,9 +146,9 @@ const trajectory_manager = new function(){
 	tproto.prototype.set_rotation_axan = function(ax, an){
 		this.rot.set(quat_from_axan(ax, an));}
 	tproto.prototype.add_rotation_quat = function(q){
-		quat.multiply(this.rot, this.rot, qfill(q.slice(0,3)));}
+		glMatrix.quat.multiply(this.rot, this.rot, qfill(q.slice(0,3)));}
 	tproto.prototype.add_rotation_axan = function(ax, an){
-		quat.multiply(this.rot, this.rot, quat_from_axan(ax, an));}
+		glMatrix.quat.multiply(this.rot, this.rot, quat_from_axan(ax, an));}
 	tproto.prototype.clr_rotation = function(){
 		this.rot.set([0,0,0,1]);}
 	// torque quat
@@ -144,9 +157,9 @@ const trajectory_manager = new function(){
 	tproto.prototype.set_torque_axan = function(ax, an){
 		this.trq.set(quat_from_axan(ax, an));}
 	tproto.prototype.add_torque_quat = function(q){
-		quat.multiply(this.trq, this.trq, qfill(q.slice(0,3)));}
+		glMatrix.quat.multiply(this.trq, this.trq, qfill(q.slice(0,3)));}
 	tproto.prototype.add_torque_axan = function(ax, an){
-		quat.multiply(this.trq, this.trq, quat_from_axan(ax, an));}
+		glMatrix.quat.multiply(this.trq, this.trq, quat_from_axan(ax, an));}
 	tproto.prototype.clr_torque = function(){
 		this.trq.set([0,0,0,1]);}
 	// end set values */
@@ -163,15 +176,16 @@ const trajectory_manager = new function(){
 		let p = this.parent_node.get_transform();
 		let v = this.get_local_transform();
 		// mat4.scalar.multiply(t, p, v);
-		mat4.multiply(t, p, v);
+		glMatrix.mat4.multiply(t, p, v);
 
-		quat.multiply(this.gorn, this.orn, this.parent_node.gorn);
+		// glMatrix.quat.multiply(this.gorn, this.orn, this.parent_node.gorn);
 
 		//*/
 		// this.gpos[0] = this.pos[0]*(2*(+oz*ow-oy*ow-oy*oy-oz*oz+ox*oy+ox*oz)+px+1)
 		// this.gpos[1] = this.pos[1]*(2*(+ox*ow-oz*ow-oz*oz-ox*ox+oy*oz+oy*ox)+py+1)
 		// this.gpos[2] = this.pos[2]*(2*(+oy*ow-ox*ow-ox*ox-oy*oy+oz*ox+oz*oy)+pz+1)
 		//
+		/* calculated with transfom matrix
 		let ox = this.parent_node.gorn[0];
 		let oy = this.parent_node.gorn[1];
 		let oz = this.parent_node.gorn[2];
@@ -193,6 +207,7 @@ const trajectory_manager = new function(){
 			vy+py+2*(rz*ox-rx*oz),
 			vz+pz+2*(rx*oy-ry*ox)
 		]
+		//*/
 
 		return t;
 	};
@@ -203,7 +218,7 @@ const trajectory_manager = new function(){
 		if(1 == t[15] || -1 == t[15]) return t; // already filled or infected
 		let p = this.parent_node.get_transform();
 		let v = this.get_local_transform();
-		mat4.scalar.multiply(t, p, v);
+		glMatrix.mat4.scalar.multiply(t, p, v);
 		let tgt = this.target.get_transform();
 		let up = this.up;
 
@@ -231,6 +246,7 @@ const trajectory_manager = new function(){
 	}
 
 	tproto.prototype.get_local_transform = function(){
+		return this._tdata.subarray(22, 38); // local transform
 		let t = this._tdata.subarray(22, 38); // local transform
 		if(1 == t[15] || -1 == t[15]) return t; // already filled or infected
 
@@ -268,7 +284,15 @@ const trajectory_manager = new function(){
 	// expose for object node
 	this.generate_proto = tproto;
 
+	this.cycle_objects = [];
+
+
 	this.cycle = function(ms){
+		// cycle each registered object
+		this.cycle_objects.forEach((obj)=>{
+			obj && typeof obj.cycle === 'function' && obj.cycle(ms);
+		})
+
 		// NOTE: keep this identical to server code!
 		// TODO: hack around webgl or use SIMD
 		// TODO: update after frame-loss
@@ -280,25 +304,34 @@ const trajectory_manager = new function(){
 				orn = tdata.subarray(10, 14),
 				rot = tdata.subarray(14, 18),
 				trq = tdata.subarray(18, 22);
+				let t = ms/1000;
 
 			// update position
-			let tmprot = Array.from(rot);
-			quat.multiply(rot, rot, trq);
+			// let tmprot = Array.from(rot);
+			// quat.multiply(rot, rot, trq);
+			// rot = slerp(tmprot, rot, ms/1000);
+			// tmprot = slerp(tmprot, rot, 0.5);
 			// quat.slerp(rot, tmprot, rot, ms/1000);
 			// quat.slerp(tmprot, tmprot, rot, 0.5);
-			rot = slerp(tmprot, rot, ms/1000);
-			tmprot = slerp(tmprot, rot, 0.5);
 
 			// update rotation
 			let tmporn = [0,0,0,1];
-			quat.multiply(tmporn, orn, tmprot);
-			quat.slerp(orn, orn, tmporn, ms/1000);
+			let nRot  = [0,0,0,1];
+			glMatrix.quat.conjugate(nRot, rot);
+			// quat.multiply(tmporn, orn, tmprot);
+			// quat.multiply(tmporn, nOrn, tmprot);
+			glMatrix.quat.multiply(tmporn, orn, rot);
+			// quat.multiply(tmporn, tmporn, nRot);
+			glMatrix.quat.slerp(orn, orn, tmporn, ms/1000);
 			norm4(rot);
 			norm4(orn);
 			// update position
-			pos[0] += (vel[0] + acc[0]/2)*ms/1000;
-			pos[1] += (vel[1] + acc[1]/2)*ms/1000;
-			pos[2] += (vel[2] + acc[2]/2)*ms/1000;
+			// pos[0] += (vel[0] + acc[0]/2)*ms/1000;
+			// pos[1] += (vel[1] + acc[1]/2)*ms/1000;
+			// pos[2] += (vel[2] + acc[2]/2)*ms/1000;
+			pos[0] += (vel[0]*t) + (acc[0]*t*t/2);
+			pos[1] += (vel[1]*t) + (acc[1]*t*t/2);
+			pos[2] += (vel[2]*t) + (acc[2]*t*t/2);
 			vel[0] += acc[0]*ms/1000;
 			vel[1] += acc[1]*ms/1000;
 			vel[2] += acc[2]*ms/1000;
@@ -306,6 +339,34 @@ const trajectory_manager = new function(){
 			tdata[37] = 0; // local
 			tdata[53] = 0; // global
 			// TODO: create transform right here
+
+			let
+				px = pos[0],
+				py = pos[1],
+				pz = pos[2],
+				ox = orn[0],
+				oy = orn[1],
+				oz = orn[2],
+				ow = orn[3];
+
+			let local = tdata.subarray(22, 38); // local transform
+			local[0]  = 1-2*oy*oy-2*oz*oz;
+			local[1]  = 2*ox*oy-2*oz*ow;
+			local[2]  = 2*ox*oz+2*oy*ow;
+			local[3]  = 0;
+			local[4]  = 2*ox*oy+2*oz*ow;
+			local[5]  = 1-2*ox*ox-2*oz*oz;
+			local[6]  = 2*oy*oz-2*ox*ow;
+			local[7]  = 0;
+			local[8]  = 2*ox*oz-2*oy*ow;
+			local[9]  = 2*oy*oz+2*ox*ow;
+			local[10] = 1-2*ox*ox-2*oy*oy;
+			local[11] = 0;
+			local[12] = px;
+			local[13] = py;
+			local[14] = pz;
+			local[15] = 1;
+
 		});
 	};
 
@@ -321,6 +382,7 @@ const trajectory_manager = new function(){
 	function quat_from_axan(ax, an){
 		let s2 = Math.sin(an/2);
 		// return normalize([ax[0]*s2, ax[1]*s2, ax[2]*s2, Math.cos(an/2)]);
+		// return [Math.cos(an/2), ax[0]*s2, ax[1]*s2, ax[2]*s2];
 		return qfill([ax[0]*s2, ax[1]*s2, ax[2]*s2, 0]);
 	}
 
@@ -375,7 +437,7 @@ const trajectory_manager = new function(){
 	}
 
 	function qfill(val){
-		val[3] = Math.sqrt(1-(val[0]*val[0]+val[1]*val[1]+val[2]*val[2]));
+		val[3] = Math.sqrt(1-((val[0]*val[0])+(val[1]*val[1])+(val[2]*val[2])));
 		return val;
 	}
 

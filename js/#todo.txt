@@ -1,0 +1,34 @@
+Billboard-node ✓
+- selection outlines ✓
+- particle effects
+	- instanced rendering
+	- texture/color-blending?
+uber shader?
+proper obj lighting
+
+camera transform and camera-target ✓
+
+unit definition ✓
+unit-selector ✓
+navigation plane ✓
+movement marker ✓
+movement (partially)
+planned movement
+input records coord on screen-> ✓
+camera needs to records plane coords ✓
+
+rotation to target
+collision detection
+repulsion bubble
+vertical movement
+friendly and foe
+proper targeting
+firing
+damage model
+
+
+formation movement:
+squad leader has object nodes in formation position attached to it,
+the wings have these as target and navigate to match them.
+
+
