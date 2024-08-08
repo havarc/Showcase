@@ -37,7 +37,7 @@ void main () {
 	// outColor = vec4(1.0,1.0, 0.0, 1.0);
 	// outColor = v_color;
 
-	vec3 fake_light = normalize(vec3(1, 1, 1));
+	vec3 fake_light = normalize(vec3(0, 1, 0));
 	float diffuse_factor = dot(fake_light, normal);
 
 	outColor = vec4(ambient  + ambient * diffuse_factor, 1.0);

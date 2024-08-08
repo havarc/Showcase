@@ -36,19 +36,45 @@ const texture_manager = new function(){
 const material_manager = new function(){
 	let material_buffer = new Map(); // stored materials
 
-	this.load_material = function(name){
+	this.default_material = {
+		shininess:      new Float32Array([0]),
+		ambient:        new Float32Array([1, 1, 1]),
+		diffuse:        new Float32Array([1, 1, 1]),
+		specular:       new Float32Array([0, 0, 0]),
+		emissive:       new Float32Array([0, 0, 0]),
+		opticalDensity: new Float32Array([1]),
+		opacity:        new Float32Array([0]),
+		illum:          new Float32Array([0]),
+		texture:        grafx.whitePixel
+	}
+
+	this.default_matLib = {
+		"default": this.default_material
+	}
+
+	material_buffer.set("default", this.default_material)
+
+	this.load_material = async function(name){
 		if(!name || name.length < 4) return null;
 		let mdata = material_buffer.get(name);
-		if(mdata){return mdata;}
+		if(mdata && !mdata.name)console.error("no name");
+		if(mdata){
+			// console.log(mdata);
+			// await mdata;
+			// console.log(mdata);
+			// return material_buffer.get(name);
+			return mdata;
+		}
 
 		if(name.endsWith(".json")){
-			mdata = fetch(new Request(`models/${name}`))
+			mdata = await fetch(new Request(`models/${name}`))
 			.then(response => response.json())
 			.then(material_received_json);
 		} else if(name.endsWith(".mtl")){
-			mdata = fetch(new Request(`models/${name}`))
+			mdata = await fetch(new Request(`models/${name}`))
 			.then(response => response.text())
-			.then(material_received_mtl);
+			.then(process_material_mtl);
+			// .then(material_received_mtl);
 		} else {
 			console.error("material in unknown data format requested: " + name)
 			return
@@ -56,13 +82,15 @@ const material_manager = new function(){
 		
 		mdata.name = name;
 		material_buffer.set(name, mdata);
-		console.log(material_buffer);
+		// console.log(material_buffer);
+		// await mdata;
+		// return material_buffer.get(name)
 		return mdata;
 
 		// private callback when the material file is received
 		async function material_received_json(response){
-			console.log(name);
-			console.log(response);
+			// console.log(name);
+			// console.log(response);
 			response.name = name
 			process_material_json(response);
 		}
@@ -71,11 +99,12 @@ const material_manager = new function(){
 			// console.log(name);
 			// console.log(response);
 			// response.name = name
-			process_material_mtl(response);
+			await process_material_mtl(response);
 		}
 
-		function process_material_mtl(text){
-			const materials = new Map();
+		async function process_material_mtl(text){
+			let materials = new Map();
+			// material_buffer.set(name, materials)
 			let material;
 		  
 			const keywords = {
@@ -130,8 +159,8 @@ const material_manager = new function(){
 				console.log(m)
 			})
 
-			console.log(name);
-			material_buffer.set(name, materials)
+			console.log(name, materials);
+			return materials;
 		}
 	};
 

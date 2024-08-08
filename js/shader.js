@@ -176,7 +176,7 @@ const shader_manager = new function(){
 
 			gl.linkProgram(program);
 			if (!gl.getProgramParameter(program, gl.LINK_STATUS))
-				alert('Could not initialise shaders ' + stack);
+				alert('Could not initialize shaders ' + stack);
 
 			// take the extracted attributes and uniforms
 			// and attach their location to the final program
@@ -189,7 +189,7 @@ const shader_manager = new function(){
 					case 'in':
 						// todo: add matrix attribute handler (?)
 						l = gl.getAttribLocation(program, result[3]);
-						// console.log('attribute: '+result[3]+','+l)
+						// console.log(program.name, ' attribute: '+result[3]+','+l)
 						if(0>l)break; // attribute is unused
 						gl.vertexAttribPointer(l, +(result[2].charAt(result[2].length-1)), gl.FLOAT, false, 0, 0);
 						gl.enableVertexAttribArray(l);
@@ -209,6 +209,7 @@ const shader_manager = new function(){
 			// tidy up
 			delete program.inputs;
 			delete program.pstack;
+			program.ready = true;
 			// do not delete program.includes! (required for shader directives)
 		}
 	};

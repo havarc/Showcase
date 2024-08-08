@@ -13,8 +13,6 @@ uniform float scale;
 uniform mat4 rtMatrix;
 uniform mat4 mvMatrix;
 uniform mat4 vpMatrix;
-uniform vec3 position;
-uniform vec4 orientation;
 
 out vec3 vNormal;
 out vec2 vTexture;

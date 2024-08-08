@@ -60,7 +60,7 @@ canvas {
 .widget-handle{
   position: absolute;
   /*background-color: red;*/
-  display: block;
+  display: none;
 }
 
 .widget-east-handle{
@@ -107,6 +107,10 @@ canvas {
   color: black;
   /*z-index: 3;*/
   overflow: auto;
+}
+
+input:disabled {
+	opacity: 1 !important;
 }
 
 .text {

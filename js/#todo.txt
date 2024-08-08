@@ -32,3 +32,22 @@ squad leader has object nodes in formation position attached to it,
 the wings have these as target and navigate to match them.
 
 
+create mini-games
+lore wise:
+doing these provide data for agents aboard the ship to automate that task for you
+faster and more reliable, and at some point better than you
+
+like...
+- repairing
+	- fighters
+	- ships
+	- modules
+- building (above)
+	- picking and placing parts from a (printing) factory
+		- managing that printing factory (don't go too far into that!)
+
+option to quality control results!
+-  at any stage
+
+...and there's a vendor for these! It's gonna cost you!
+HOW MUCH!

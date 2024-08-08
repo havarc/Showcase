@@ -15,6 +15,16 @@ uniform sampler2D u_texture;
 out vec4 outColor;
 
 void main(void){
+	/*
+	  sample the depth-texture at coord and its neighbors
+	  if: 0 == a(x) = [d(x)-d(x-1)]+[d(x)-d(x+1)] = 2*d(x)-d(x-1)-d(x+1)
+	  then: depth in x direction is linear
+
+	  result: color + a(x) + a(y)
+	  on a planar surface this doesn't modify
+	  on edge it modifies depending on direction
+	*/
+
 	// because v_normal is a varying it's interpolated
 	// so it will not be a unit vector. Normalizing it
 	// will make it a unit vector again
@@ -24,26 +34,11 @@ void main(void){
 	// of the normal to the light's reverse direction
 	// float light = dot(normal, normalize(u_reverseLightDirection));
 	vec4 c = texture(u_texture, vTexture);
-
-	float alpha = 4.0;
-	vec2 sl_v2_PixelSize = vec2(.001, .001);
-     //Check neighbors
-    alpha -= (texture(u_texture, vTexture + vec2(sl_v2_PixelSize.x, 0.)).r);
-    alpha -= (texture(u_texture, vTexture + vec2(-sl_v2_PixelSize.x, 0.)).r);
-    alpha -= (texture(u_texture, vTexture + vec2(0., sl_v2_PixelSize.y)).r);
-    alpha -= (texture(u_texture, vTexture + vec2(0., -sl_v2_PixelSize.y)).r);
-
-	// if(c.a < 0.1){
-	// 	discard;
-	// }
-	// outColor = c;
-
-	// depth buffer recalc
-	float f = 1000.0; //far plane
-	float n = 1.0; //near plane
-	float z = (2.0 * n) / (f + n - c.x * (f - n));
-	outColor = vec4(alpha,alpha,alpha, 1);
-
+ 
+	if(c.a < 0.1){
+		discard;
+	}
+	outColor = c;
 
   	// outColor = texture(u_texture, vTexture);
 	// outColor = vec4(0.72, 0.83, 0.85, 1.0);

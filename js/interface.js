@@ -342,6 +342,9 @@ gui.create_dropdown = function(params){
 	let options = params.options ||[];
 	let d = document.createElement('select');
 	d.setAttribute("type", "text");
+	params.id && (d.id = params.id);
+	// params.id && d.setAttribute("id", params.id);
+	// params.name && d.setAttribute("name", params.name);
 	// d.setAttribute("height", params.lines*20 || 20)
 	// d.setAttribute("value", text)
 	for(let s of options){
@@ -374,20 +377,20 @@ gui.create_number = function(params = {}){
 	let options = params.options ||[];
 	let d = document.createElement('input');
 	d.setAttribute("type", "number");
+	params.id && (d.id = params.id);
+	// params.id && d.setAttribute("id", params.id);
+	// params.name && d.setAttribute("name", params.name);
 	// d.setAttribute("type", "text");
 	d.setAttribute("min", params.min || 1);
 	d.setAttribute("max", params.max || 10);
 	d.setAttribute("step", params.step || 1);
 	d.setAttribute("value", params.value || 1);
+	d.setAttribute("active", params.active || true);
+	d.setAttribute("disabled", params.disabled || false);
 
 	//on select
-	let clk = params.click;
-	if(typeof clk !== 'function')
-		// try to resolve function name, then try again
-		clk = str2ref(clk);
-	if(typeof clk !== 'function'){
-		alert('function ' + clk + ' for button ' + params.icon + ' not found ');
-	} else {
+	let clk = resolve_function(params.click);
+	if(typeof clk == 'function'){
 		d.addEventListener('input', clk)
 	}
 
@@ -401,7 +404,7 @@ gui.create_code = function(params){
 	params = params || {};
 	let text = params.text;
 	let d = document.createElement('textarea');
-	d.setAttribute("id", params.id);
+	params.id && (d.id = params.id);
 	// d.style.height = (params.lines|| 1) *20 + "px";
 	d.setAttribute("type", "text");
 	// d.setAttribute("height", params.lines*20 || 20)
@@ -423,20 +426,25 @@ gui.create_text = function(params){
 	return d;
 }
 
+function resolve_function(fnc){
+	if(!fnc) return;
+	if(typeof fnc !== 'function')
+		return fnc = str2ref(fnc);
+	return fnc;
+}
+
 // button with function
 gui.create_button = function(params){
 	params = params || {};
 	let btn = document.createElement('div');
 	btn.className = 'button icon icon-' + (params.icon || 'list');
 	btn.id = params.id || '';
-	let clk = params.click;
-	if(typeof clk !== 'function')
-		clk = str2ref(clk);
-	if(typeof clk !== 'function'){
-		alert('function ' + clk + ' for button ' + params.icon + ' not found ');
-	} else {
+	let clk = resolve_function(params.click);
+	if(typeof clk == 'function'){
 		btn.addEventListener('mousedown', clk)
 	}
+
+	btn.setAttribute("placeholder", params.name || "Hello Button");
 	return btn;
 }
 

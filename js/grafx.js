@@ -1,5 +1,5 @@
 "use strict";
-
+/** @type {WebGLRenderingContext} */
 const degtorad = Math.PI / 180;
 
 // var n = 127;
@@ -12,14 +12,14 @@ const degtorad = Math.PI / 180;
  */
 const grafx = new function(){
 	let gl_canvas, gl;
-	let color_program;
-	let texture_program;
-	let billboard_program;
-	let particle_program;
-	let line_program;
-	let obj_program;
-	let arrow_program
-	let stars_program;
+	// let color_program;
+	// let texture_program;
+	// let billboard_program;
+	// let particle_program;
+	// let line_program;
+	// let obj_program;
+	// let arrow_program
+	// let stars_program;
 	let old_ms = 0;
 	let sdcnt = 3;
 	let lod = 0; // current level of detail
@@ -30,44 +30,103 @@ const grafx = new function(){
 	// gl.bindTexture(gl.TEXTURE_2D, null);
 	let draw_stars;
 
+	let fb;
+	let fb_size = 256;
+	let fb_tex;
+	let fb_depth;
+	let dBillboard;
 
-	this.init = function(){
+
+	this.init = async function(){
 		console.log("init grafx");
 		gl_canvas = document.getElementById('local-canvas');
 		// load up webgl
 		gl = WebGLUtils.setupWebGL(gl_canvas);
 		if (!gl) {alert("Can't get WebGL"); return;}
-		// request main shader
-		color_program = shader_manager.request_shader('color');
-		texture_program = shader_manager.request_shader('texture');
-		billboard_program = shader_manager.request_shader('billboard');
-		particle_program = shader_manager.request_shader('particles')
-		line_program = shader_manager.request_shader('line');
-		obj_program = shader_manager.request_shader('obj');
-		arrow_program = shader_manager.request_shader('arrow');
-		stars_program = shader_manager.request_shader('stars');
 
-		draw_stars = get_draw_stars();
-
-
-
-		this.whitePixel = gl.createTexture();
+		this.white_pixel = gl.createTexture();
 		gl.bindTexture(gl.TEXTURE_2D, this.whitePixel);
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));	
 		gl.bindTexture(gl.TEXTURE_2D, null);
 
-		// settings
-		gl.clearColor(0.0, 0.0, 0.0, 1.0);
-		gl.enable(gl.DEPTH_TEST);
-		// gl.blendFunc(gl.ONE, gl.ONE)
-		// gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-		gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-		gl.enable(gl.BLEND);
-		// gl.enable(gl.ALPHA_TEST);
-		// gl.enable(gl.CULL_FACE);
-		// gl.cullFace(gl.BACK);
-		draw_scene();
+		// depth buffer experiment
+		fb_tex = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, fb_tex);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA,
+			fb_size, fb_size, 0,
+			gl.RGBA, gl.UNSIGNED_BYTE, null);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+			
+			
+
+		fb_depth = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, fb_depth);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24,
+			fb_size, fb_size, 0,
+			gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+			
+				
+		fb = gl.createFramebuffer();
+		gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+		// attach the texture and depth map
+		gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fb_tex, 0);
+		gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, fb_depth, 0);
+		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+		// dBillboard = this.generate_billboard_render_function(fb_tex);
+		// dBillboard = this.generate_billboard_render_function(texture_manager.load_texture("Plushy.jpg"));
+
+		// end depth buffer experiment
+
+
+		let shaders = [
+			'texture',
+			'billboard',
+			'particles',
+			'obj',
+			'arrow',
+			'stars',
+			'depth'
+		]
+
+		let pstack = [];
+		// load all shaders
+		shaders.forEach((s)=>{
+			pstack.push(Promise.all(shader_manager.request_shader(s).pstack));
+		})
+
+		// wait for the shaders to load and compile, otherwise not-hilarious chaos ensues!
+		return await Promise.all(pstack).then((val) => {
+
+			draw_stars = get_draw_stars();
+
+			// dBillboard = this.generate_billboard_render_function(this.whitePixel);
+			// settings
+			gl.clearColor(0.0, 0.0, 0.0, 1.0);
+			gl.enable(gl.DEPTH_TEST);
+			// gl.blendFunc(gl.ONE, gl.ONE)
+			// gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+			gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+			gl.enable(gl.BLEND);
+			// gl.enable(gl.ALPHA_TEST);
+			// gl.enable(gl.CULL_FACE);
+			// gl.cullFace(gl.BACK);
+			draw_scene();
+			return;
+		})
 	};
+
+	this.get_billboard = function(){
+		return this.generate_billboard_render_function(fb_depth, 2);
+		// return this.generate_billboard_render_function(texture_manager.load_texture("Plushy.jpg"));
+	}
 
 	this.get_gl = function(){return gl;};
 
@@ -104,7 +163,7 @@ const grafx = new function(){
 
 	// let dtex = gl.createTexture();
 	
-	this.default_texture = function(){}
+	// this.default_texture = function(){}
 
 	// model_node can call this to get buffers for their data
 	// returns the render-function for colored or textured meshes
@@ -114,10 +173,10 @@ const grafx = new function(){
 			return () => {};
 		}
 
-		let texture = mesh.stex;
+		let texture = mesh.texture;
 
-		let program = color_program;
-		if(texture) program = texture_program;
+		if(!texture)texture = this.white_pixel
+		program = shader_manager.request_shader('texture');
 
 		// create the Vertex Array Object
 		let vao = gl.createVertexArray();
@@ -162,79 +221,57 @@ const grafx = new function(){
 		let triangle_count = [];
 		let line_count = [];
 
-		for(let i = 0; i <= sdcnt; i++){
-			lod_buffer[i] = gl.createBuffer();
-			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[i]);
-			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,mesh.triangle_index[i], gl.STATIC_DRAW);
-			triangle_count[i] = mesh.triangle_index[i].length;
+		// for(let i = 0; i <= sdcnt; i++){
+		// 	lod_buffer[i] = gl.createBuffer();
+		// 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[i]);
+		// 	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,mesh.triangle_index[i], gl.STATIC_DRAW);
+		// 	triangle_count[i] = mesh.triangle_index[i].length;
 
-			lod_edge_buffer[i] = gl.createBuffer();
-			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_edge_buffer[i]);
-			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.edge_index[i], gl.STATIC_DRAW);
-			line_count[i] = mesh.edge_index[i].length;
-		}
+		// 	lod_edge_buffer[i] = gl.createBuffer();
+		// 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_edge_buffer[i]);
+		// 	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.edge_index[i], gl.STATIC_DRAW);
+		// 	line_count[i] = mesh.edge_index[i].length;
+		// }
 
-		let b = new Float32Array([0.0]);
+		// return drawing function
+		return function(transform, view, projection){
+			if(!view instanceof Float32Array || !projection instanceof Float32Array){
+				console.warn('view or projection matrix not Typed Array');
+				return false;
+			}
+
+			gl.useProgram(program);
+
+			if(this.billboard){
+				// remove node rotation
+				let dummy = new Float32Array(16);
+				glMatrix.mat4.getTranslation(dummy, transform)
+				transform = dummy;
+				dummy = new Float32Array(16);
+				glMatrix.mat4.getTranslation(dummy, view)
+				view = dummy;
+
+			}
+
+			// load matrices
+			// TODO use uniform buffer object
+			gl.uniformMatrix4fv(program.rtMatrix, false, view);
+			gl.uniformMatrix4fv(program.vpMatrix, false, projection);
+
+			gl.uniformMatrix4fv(program.mvMatrix, false, transform);
+			gl.uniform1f(program.scale, this.args.scale || 1);
+
+			gl.bindVertexArray(vao);
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[lod]);
 	
-		if(texture){
-			// return drawing function
-			return function(lod = 0, view, projection){
-				if(!view instanceof Float32Array || !projection instanceof Float32Array){
-					console.warn('view or projection matrix not Typed Array');
-					return false;
-				}
+			gl.activeTexture(gl.TEXTURE0);
+			gl.bindTexture(gl.TEXTURE_2D, texture);
+			gl.uniform1i(program.u_texture, 0)
 
-				gl.useProgram(texture_program);
-
-				// load matrices
-				// TODO use uniform buffer object
-				gl.uniformMatrix4fv(texture_program.rtMatrix, false, view);
-				gl.uniformMatrix4fv(texture_program.vpMatrix, false, projection);
-
-				gl.uniform3fv(texture_program.position, this.parent_node.gpos);
-				gl.uniform4fv(texture_program.orientation, this.parent_node.gorn);
-				gl.uniformMatrix4fv(texture_program.mvMatrix, false, this.parent_node.get_transform());
-				gl.uniform1f(texture_program.scale, this.args.scale || 1);
-
-				gl.bindVertexArray(vao);
-				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[lod]);
-		
-				gl.activeTexture(gl.TEXTURE0);
-				gl.bindTexture(gl.TEXTURE_2D, texture);
-				gl.uniform1i(texture_program.u_texture, 0)
-
-				// TODO: use drawRangeElements for lod
-				gl.drawElements(gl.TRIANGLES, triangle_count[lod], gl.UNSIGNED_SHORT, 0);
-				gl.bindVertexArray(null);
-			};
-		} else {
-			// return drawing function
-			return function(lod = 0, view, projection){
-				if(!view instanceof Float32Array || !projection instanceof Float32Array){
-					console.warn('view or projection matrix not Typed Array');
-					return false;
-				}
-
-				gl.useProgram(color_program);
-
-				// load matrices
-				// TODO use uniform buffer object
-				gl.uniformMatrix4fv(color_program.rtMatrix, false, view);
-				gl.uniformMatrix4fv(color_program.vpMatrix, false, projection);
-		
-				gl.uniform3fv(color_program.position, this.parent_node.gpos);
-				gl.uniform4fv(color_program.orientation, this.parent_node.gorn);
-				gl.uniformMatrix4fv(color_program.mvMatrix, false, this.parent_node.get_transform());
-				// gl.uniform1fv(color_program.billboard, b);
-
-				gl.bindVertexArray(vao);
-				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lod_buffer[lod]);
-
-				// TODO: use drawRangeElements for lod
-				gl.drawElements(gl.TRIANGLES, triangle_count[lod], gl.UNSIGNED_SHORT, 0);
-				gl.bindVertexArray(null);
-			};
-		}
+			// TODO: use drawRangeElements for lod
+			gl.drawElements(gl.TRIANGLES, triangle_count[lod], gl.UNSIGNED_SHORT, 0);
+			gl.bindVertexArray(null);
+		};
 	}
 
 
@@ -243,11 +280,13 @@ const grafx = new function(){
 	// TODO: program defined my model/given data
 	this.generate_billboard_render_function = function(texture, size = 1){
 
+		let program = shader_manager.request_shader('billboard');
+
 		let triCorners = new Float32Array([
-			-1.0, -1.0,
-			1.0, -1.0,
-			1.0, 1.0,
-			-1.0, 1.0
+			-2.0, -2.0,
+			2.0, -2.0,
+			2.0, 2.0,
+			-2.0, 2.0
 		]);
 		let texCoords = new Float32Array([
 			0, 0,
@@ -266,15 +305,17 @@ const grafx = new function(){
 		let vertex_buffer = gl.createBuffer();
 		gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
 		gl.bufferData(gl.ARRAY_BUFFER, triCorners, gl.STATIC_DRAW);
-		gl.enableVertexAttribArray(billboard_program.vertex_data);
-		gl.vertexAttribPointer(billboard_program.vertex_data, 2, gl.FLOAT, false, 0, 0);
+		gl.enableVertexAttribArray(program.vertex_data);
+		gl.vertexAttribPointer(program.vertex_data, 2, gl.FLOAT, false, 0, 0);
 
-		if(billboard_program.texture_data){
+		console.log("b");
+		if(program.texture_data){
 			let texture_buffer = gl.createBuffer();
 			gl.bindBuffer(gl.ARRAY_BUFFER, texture_buffer);
 			gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.STATIC_DRAW);
-			gl.enableVertexAttribArray(billboard_program.texture_data);
-			gl.vertexAttribPointer(billboard_program.texture_data, 2, gl.FLOAT, false, 0, 0);
+			gl.enableVertexAttribArray(program.texture_data);
+			gl.vertexAttribPointer(program.texture_data, 2, gl.FLOAT, false, 0, 0);
+			console.log("t");
 		}
 
 		gl.bindBuffer(gl.ARRAY_BUFFER, null);
@@ -293,21 +334,22 @@ const grafx = new function(){
 				return false;
 			}
 
-			gl.useProgram(billboard_program);
+			gl.useProgram(program);
 
 			// load matrices
 			// TODO use uniform buffer object
-			gl.uniformMatrix4fv(billboard_program.rtMatrix, false, view);
-			gl.uniformMatrix4fv(billboard_program.vpMatrix, false, projection);
+			gl.uniformMatrix4fv(program.rtMatrix, false, view);
+			gl.uniformMatrix4fv(program.vpMatrix, false, projection);
 
-			gl.uniform3fv(billboard_program.position, this.parent_node.gpos);
-			gl.uniform4fv(billboard_program.orientation, this.parent_node.gorn);
-			gl.uniformMatrix4fv(billboard_program.mvMatrix, false, this.parent_node.get_transform());
-			gl.uniform1f(billboard_program.size, size);
+			gl.uniform3fv(program.position, new Float32Array([0,0,0]));
+			// gl.uniform3fv(program.position, this.parent_node.gpos);
+			// gl.uniform4fv(program.orientation, this.parent_node.gorn);
+			// gl.uniformMatrix4fv(program.mvMatrix, false, this.parent_node.get_transform());
+			gl.uniform1f(program.size, size);
 
 			gl.activeTexture(gl.TEXTURE0);
 			gl.bindTexture(gl.TEXTURE_2D, texture);
-			gl.uniform1i(billboard_program.u_texture, 0)
+			gl.uniform1i(program.u_texture, 0)
 
 			gl.bindVertexArray(vao);
 			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triBuffer);
@@ -326,6 +368,8 @@ const grafx = new function(){
 		// TODO: check for Promise
 		// if(!texture || !gl.isTexture(texture)) texture = this.whitePixel
 		
+		let program = shader_manager.request_shader('particles');
+
 		let triCorners = new Float32Array([
 			-1.0, -1.0,
 			1.0, -1.0,
@@ -369,30 +413,30 @@ const grafx = new function(){
 		let vertex_buffer = gl.createBuffer();
 		gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
 		gl.bufferData(gl.ARRAY_BUFFER, triCorners, gl.STATIC_DRAW);
-		gl.enableVertexAttribArray(particle_program.vertex_data);
-		gl.vertexAttribPointer(particle_program.vertex_data, 2, gl.FLOAT, false, 0, 0);
+		gl.enableVertexAttribArray(program.vertex_data);
+		gl.vertexAttribPointer(program.vertex_data, 2, gl.FLOAT, false, 0, 0);
 
-		if(particle_program.texture_data){
+		if(program.texture_data){
 			let texture_buffer = gl.createBuffer();
 			gl.bindBuffer(gl.ARRAY_BUFFER, texture_buffer);
 			gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.STATIC_DRAW);
-			gl.enableVertexAttribArray(particle_program.texture_data);
-			gl.vertexAttribPointer(particle_program.texture_data, 2, gl.FLOAT, false, 0, 0);
+			gl.enableVertexAttribArray(program.texture_data);
+			gl.vertexAttribPointer(program.texture_data, 2, gl.FLOAT, false, 0, 0);
 		}
 
 		let offset_buffer = gl.createBuffer();
 		gl.bindBuffer(gl.ARRAY_BUFFER, offset_buffer);
 		gl.bufferData(gl.ARRAY_BUFFER, pOffsets, gl.STATIC_DRAW);
-		gl.enableVertexAttribArray(particle_program.rel_pos);
-		gl.vertexAttribPointer(particle_program.rel_pos, 3, gl.FLOAT, false, 0, 0);
-		gl.vertexAttribDivisor(particle_program.rel_pos, 1);
+		gl.enableVertexAttribArray(program.rel_pos);
+		gl.vertexAttribPointer(program.rel_pos, 3, gl.FLOAT, false, 0, 0);
+		gl.vertexAttribDivisor(program.rel_pos, 1);
 
 		let color_buffer = gl.createBuffer();
 		gl.bindBuffer(gl.ARRAY_BUFFER, color_buffer);
 		gl.bufferData(gl.ARRAY_BUFFER, pColors, gl.STATIC_DRAW);
-		gl.enableVertexAttribArray(particle_program.tColor);
-		gl.vertexAttribPointer(particle_program.tColor, 4, gl.FLOAT, false, 0, 0);
-		gl.vertexAttribDivisor(particle_program.tColor, 1);
+		gl.enableVertexAttribArray(program.tColor);
+		gl.vertexAttribPointer(program.tColor, 4, gl.FLOAT, false, 0, 0);
+		gl.vertexAttribDivisor(program.tColor, 1);
 
 		gl.bindBuffer(gl.ARRAY_BUFFER, null);
 		gl.bindVertexArray(null);
@@ -410,21 +454,21 @@ const grafx = new function(){
 				return false;
 			}
 
-			gl.useProgram(particle_program);
+			gl.useProgram(program);
 
 			// load matrices
 			// TODO use uniform buffer object
-			gl.uniformMatrix4fv(particle_program.rtMatrix, false, view);
-			gl.uniformMatrix4fv(particle_program.vpMatrix, false, projection);
+			gl.uniformMatrix4fv(program.rtMatrix, false, view);
+			gl.uniformMatrix4fv(program.vpMatrix, false, projection);
 
-			gl.uniform3fv(particle_program.position, this.parent_node.gpos);
-			gl.uniform4fv(particle_program.orientation, this.parent_node.gorn);
-			gl.uniformMatrix4fv(particle_program.mvMatrix, false, this.parent_node.get_transform());
-			gl.uniform1f(particle_program.size, size);
+			gl.uniform3fv(program.position, this.parent_node.gpos);
+			gl.uniform4fv(program.orientation, this.parent_node.gorn);
+			gl.uniformMatrix4fv(program.mvMatrix, false, this.parent_node.get_transform());
+			gl.uniform1f(program.size, size);
 
 			gl.activeTexture(gl.TEXTURE0);
 			gl.bindTexture(gl.TEXTURE_2D, texture);
-			gl.uniform1i(particle_program.u_texture, 0)
+			gl.uniform1i(program.u_texture, 0)
 
 			gl.bindVertexArray(vao);
 			// gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triBuffer);
@@ -435,112 +479,11 @@ const grafx = new function(){
 		};
 	}
 
-	// the model already knows what it needs for rendering
-	// TODO: program defined my model/given data
-	this.generate_custom_render_function = function(mesh){
-		// ! shaders need to be preloaded here
-		// TODO: implement dynamic shader loading
-		let program = shader_manager.get(mesh.shader);
-		// console.log(mesh);
-
-		// create the Vertex Array Object
-		let vao = gl.createVertexArray();
-		gl.bindVertexArray(vao);
-
-		let vertex_buffer = gl.createBuffer();
-		gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
-		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh.vertex_data), gl.STATIC_DRAW);
-		gl.enableVertexAttribArray(program.vertex_data);
-		gl.vertexAttribPointer(program.vertex_data, 3, gl.FLOAT, false, 0, 0);
-
-		// check if the data is used in the shader
-		if(Number.isInteger(program.normal_data)){
-			let normal_buffer = gl.createBuffer();
-			gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
-			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh.normal_data), gl.STATIC_DRAW);
-			gl.enableVertexAttribArray(program.normal_data);
-			gl.vertexAttribPointer(program.normal_data, 3, gl.FLOAT, false, 0, 0);
-		}
-
-		if(Number.isInteger(program.color_data)){
-			let color_buffer = gl.createBuffer();
-			gl.bindBuffer(gl.ARRAY_BUFFER, color_buffer);
-			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh.color_data), gl.STATIC_DRAW);
-			gl.enableVertexAttribArray(program.color_data);
-			gl.vertexAttribPointer(program.color_data, 4, gl.FLOAT, false, 0, 0);
-			console.log("custom color");
-		}
-
-		if(Number.isInteger(program.texture_data)){
-			let texture_buffer = gl.createBuffer();
-			gl.bindBuffer(gl.ARRAY_BUFFER, texture_buffer);
-			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh.texture_data), gl.STATIC_DRAW);
-			gl.enableVertexAttribArray(program.texture_data);
-			gl.vertexAttribPointer(program.texture_data, 2, gl.FLOAT, false, 0, 0);
-		}
-
-		gl.bindBuffer(gl.ARRAY_BUFFER, null);
-		gl.bindVertexArray(null);
-
-		let method;
-		let length;
-
-		switch(mesh.method){
-			case "ELEMENTS":
-				let triBuffer = gl.createBuffer();
-				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triBuffer);
-				gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.triangle_index, gl.STATIC_DRAW);
-				length = mesh.triangle_index.length;
-				method = "drawElements"
-			default:
-				length = mesh.vertex_data.length/3;
-				method = "drawArrays"
-		}
-		console.log(vao);
-
-		// return drawing function
-		return function(lod = 0, view, projection){
-			if(!view instanceof Float32Array || !projection instanceof Float32Array){
-				console.warn('view or projection matrix not Typed Array');
-				return false;
-			}
-
-			gl.useProgram(program);
-			gl.depthMask(!this.args.transparent);
-
-
-			// load matrices
-			// TODO use uniform buffer object
-			gl.uniformMatrix4fv(program.rtMatrix, false, view);
-			gl.uniformMatrix4fv(program.vpMatrix, false, projection);
-
-			gl.uniform3fv(program.position, this.parent_node.gpos);
-			gl.uniform4fv(program.orientation, this.parent_node.gorn);
-			gl.uniformMatrix4fv(program.mvMatrix, false, this.parent_node.get_transform());
-			gl.uniform1f(program.scale, this.args.scale || 1);
-
-			// gl.activeTexture(gl.TEXTURE0);
-			// gl.bindTexture(gl.TEXTURE_2D, texture);
-			// gl.uniform1i(program.u_texture, 0)
-
-			gl.bindVertexArray(vao);
-	
-			// TODO: use drawRangeElements for lod
-			if(method === "drawElements"){
-				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triBuffer);
-				gl.drawElements(gl[mesh.mode], length, gl.UNSIGNED_SHORT, 0);
-
-			} else {
-				gl.lineWidth(17);
-				gl.drawArrays(gl[mesh.mode], 0, length);
-			}
-			gl.bindVertexArray(null);
-		};
-	}
-
 
 	// draws an arrow-triangle from the currently selected unit to the target position on the plane
 	this.generate_movement_indicator = (target, color = [0,1,0,1]) => {
+		let program = shader_manager.request_shader('arrow');
+
 		let colorVal = new Float32Array(color);
 		console.log(colorVal);
 
@@ -550,8 +493,8 @@ const grafx = new function(){
 		let vertex_buffer = gl.createBuffer();
 		gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
 		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-0.5,-0.5,0, -0.5,0.5,0   ,0.5,0,0]), gl.DYNAMIC_DRAW);
-		gl.enableVertexAttribArray(arrow_program.vertex_data);
-		gl.vertexAttribPointer(arrow_program.vertex_data, 3, gl.FLOAT, false, 0, 0);
+		gl.enableVertexAttribArray(program.vertex_data);
+		gl.vertexAttribPointer(program.vertex_data, 3, gl.FLOAT, false, 0, 0);
 		gl.bindVertexArray(null);
 
 		// return drawing function
@@ -560,6 +503,8 @@ const grafx = new function(){
 				console.warn('view or projection matrix not Typed Array');
 				return false;
 			}
+
+			let program = shader_manager.request_shader('arrow');
 
 			let iView = new Float32Array(16);
 			let iProjection = new Float32Array(16);
@@ -628,18 +573,18 @@ const grafx = new function(){
 				corner3[0], corner3[1], corner3[2],
 			])
 	
-			gl.useProgram(arrow_program);
+			gl.useProgram(program);
 
 			// load matrices
 			// TODO use uniform buffer object
-			gl.uniform4fv(arrow_program.u_color, colorVal);
+			gl.uniform4fv(program.u_color, colorVal);
 
 			gl.bindVertexArray(vao);
 
 			gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
 			gl.bufferSubData(gl.ARRAY_BUFFER, 0, tTri);
-			gl.enableVertexAttribArray(arrow_program.vertex_data);
-			gl.vertexAttribPointer(arrow_program.vertex_data, 3, gl.FLOAT, false, 0, 0);
+			gl.enableVertexAttribArray(program.vertex_data);
+			gl.vertexAttribPointer(program.vertex_data, 3, gl.FLOAT, false, 0, 0);
 	
 			// TODO: use drawRangeElements for lod
 			gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -647,14 +592,23 @@ const grafx = new function(){
 	}
 
 	// returns the render-function for obj-files
-	this.generate_obj_render_function = function(mesh, materials){
+	this.generate_obj_render_function = function(mesh, mat){
 		// for some reason, the materials are given in as Promise
 		// and we have to fetch them from the mat_man by name
 		// console.log(materials);
-		const mat = material_manager.load_material(materials[0].name);
+		// console.log(mesh, materials);
+
+		let obj_program = shader_manager.request_shader('obj');
+
+		// let mat = material_manager.load_material(materials[0].name);
+		// await mat;
+		// mat = material_manager.load_material(materials[0].name);
+		// const mat = material_manager.load_material(materials[0].name);
+		console.log(mesh, mat);
 		let parts = [];
 
-		for(let m of mesh){
+		// for(let m of mesh){
+		mesh.forEach((m)=>{
 			console.log(m.data.position)
 			const vao = gl.createVertexArray();
 			gl.bindVertexArray(vao);
@@ -691,15 +645,16 @@ const grafx = new function(){
 		
 			gl.bindVertexArray(null);
 			vao.size = m.data.position.length/3;
-			vao.mat = mat.get(m.material)
+			vao.mat = mat.get(m.material) || material_manager.default_material;
 			console.log(vao.mat.ambient);
 			parts.push(vao);
-		}
+		// }
+		})
 		console.log(parts);
 
 
 		// return drawing function
-		return function(lod = 0, cam_transform, projection){
+		return function(transform, cam_transform, projection){
 			var defaultmatrix = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
 			gl.useProgram(obj_program);
 			// console.log(this.parent_node.gpos, this.parent_node.gorn);
@@ -709,10 +664,11 @@ const grafx = new function(){
 			// camera
 			gl.uniformMatrix4fv(obj_program.rtMatrix, false, cam_transform);
 			gl.uniformMatrix4fv(obj_program.vpMatrix, false, projection);
-			gl.uniform1f(obj_program.scale, this.args.scale || 1);
+			gl.uniform1f(obj_program.scale, 1);
+			// gl.uniform1f(obj_program.scale, this && this.args && this.args.scale || 1);
 
 			// object to draw
-			gl.uniformMatrix4fv(obj_program.transform, false, this.parent_node.get_transform());
+			gl.uniformMatrix4fv(obj_program.transform, false, transform);
 			// gl.uniform3fv(obj_program.position, this.parent_node.gpos);
 			// gl.uniform4fv(obj_program.orientation, this.parent_node.gorn);
 
@@ -809,7 +765,7 @@ const grafx = new function(){
 	// returns the render-function for textured billboards
 	// TODO: program defined my model/given data
 	let get_draw_stars = function(){
-		let program = stars_program;
+		let program = shader_manager.request_shader('stars');
 
 		let triCorners = new Float32Array([
 			-1.0, -1.0,
@@ -861,6 +817,8 @@ const grafx = new function(){
 				return false;
 			}
 			// console.log("drawing stars");
+			// make sure they're always the background!
+			gl.depthMask(false);
 
 			gl.useProgram(program);
 
@@ -907,6 +865,7 @@ const grafx = new function(){
 		this.up = args.up || [0,1,0];
 
 		this.parameters = {FOV: 60, width: 400, height: 200}; // default if not provided
+		this.fb_projection = glMatrix.mat4.create(); // separate mat for framebuffer render
 		this.projection = glMatrix.mat4.create();
 		// var target; // TODO: attach any (empty?) object from the scene tree here as camera target
 		this.scene_head = this.parent_node; // camera renders only its own scene head
@@ -972,6 +931,13 @@ const grafx = new function(){
 			// TODO: keep or delete camera
 		}
 
+		let obj_program = shader_manager.request_shader('obj');
+		let stars_program = shader_manager.request_shader('stars');
+
+		if(!obj_program.ready || !stars_program.ready)return;
+
+
+
 		let c = this.get_transform();
 		let t;
 		if(this.target && typeof this.target.get_transform === 'function'){
@@ -987,17 +953,54 @@ const grafx = new function(){
 		glMatrix.mat4.invert(f2,f1 ) // invert the combined for reverse view
 		let p = this.projection;
 
+
+		//*
+		//* draw to framebuffer
+		// render to our targetTexture by binding the framebuffer
+		gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+		gl.depthMask(true);
+		// render cube with our 3x2 texture
+		// gl.bindTexture(gl.TEXTURE_2D, fb_tex);
+		// Tell WebGL how to convert from clip space to pixels
+		gl.viewport(0, 0, fb_size, fb_size);
+		// Clear the canvas AND the depth buffer.
+		gl.clearColor(1, 1, 1, 1);   // clear to blue
+		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+		// gl.clear(gl.COLOR_BUFFER_BIT);
+		
+
+		p = this.fb_projection;
+
+		// this.scene_head.children.forEach(function(ch){
+		// 	ch.is_model_node && ch.visible && ch.draw(ch.get_transform(), c, p, ch.args)
+		// });
+		this.ghost && this.ghost.draw(this.ghost.get_transform(), c, p, this.ghost.args);
+
+
+
+
+		//* draw to the canvas
+		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+		// Tell WebGL how to convert from clip space to pixels
+		gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+		// Clear the canvas AND the depth buffer.
+		gl.clearColor(0, 0, 0, 1);   // clear to white
+		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+		gl.depthMask(false);
 		if(this.draw_stars) draw_stars(c);
 
+		
 		//TODO: cull objects outside of view
 		// ! 23-03-03 render needs access to parent
 		// render solid objects
 		// gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 		// gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 		// gl.enable(gl.DEPTH_TEST);
+		p = this.projection;
 		gl.depthMask(true);
 		this.scene_head.children.forEach(function(ch){
-			ch.is_model_node && ch.visible && ch.draw(lod, c, p, ch.args)
+			ch.is_model_node && ch.visible && ch.draw(ch.parent_node.get_transform(), c, p, ch.args)
 			// ch.is_model_node && ch._mdata.render(0)
 		});
 
@@ -1007,9 +1010,15 @@ const grafx = new function(){
 		// gl.disable(gl.DEPTH_TEST);
 		gl.depthMask(false);
 		this.scene_head.children.forEach(function(ch){
-			ch.is_particle_node && ch.visible && ch.draw(lod, c, p, ch.args)
+			ch.is_particle_node && ch.visible && ch.draw(ch.parent_node.get_transform(), c, p, ch.args)
 			// ch.is_model_node && ch._mdata.render(0)
 		});
+
+		// dBillboard(lod, c, p)
+
+
+
+
 
 		/*
 		// draw lines
@@ -1096,6 +1105,9 @@ const grafx = new function(){
 		this.parameters.height = proj_params.height || this.parameters.height;
 		// mat4.perspective(projection, parameters.FOV/180*Math.PI, parameters.width/parameters.height, 0.1, 100);
 		set_perspective(60, this.parameters.width/this.parameters.height, 0.1, 1000, this.projection);
+		set_perspective(60, 1, 0.1, 1000, this.fb_projection);
+		console.log(this.projection, this.fb_projection);
+
 		function set_perspective(FOV, ratio,c,d,e){
 			let a=c*Math.tan(FOV*Math.PI/360);
 			let b=a*ratio;

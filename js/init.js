@@ -16,11 +16,11 @@ settings.init = function(){
 	}
 }
 
-window.onload = function() {
+window.onload = async function() {
 	// load settings
 	settings.init();
 	// init stuff
-	grafx.init();
+	await grafx.init();
 	input.init();
 
 	// gui loads widgets from local storage
@@ -32,7 +32,7 @@ window.onload = function() {
 		top: '200px', left: '0px',
 		title: 'Code',
 		content: [
-			{	type: 'dropdown',	options:[{option: "bb.js", name:"spaceship"}, {option: "car.js", name:"car"}, {option: "plushy.js", name:"plushy"}], select:load_setup	},
+			{	type: 'dropdown',	options:[{option: "bb.js", name:"spaceship"}, {option: "car.js", name:"car"}], select:load_setup	},
 			{	type: 'linebreak'},
 			{	type: 'code',	lines: 20, columns: 50, text: 'something', id: "code_field"	},
 			{	type: 'linebreak'},

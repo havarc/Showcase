@@ -14,6 +14,7 @@ function EPSILON(value){
  */
 const model_manager = new function(){
 	let model_buffer = new Map(); // stored models
+	let active_calls = new Map(); // what Models are loading
 	// TODO: keep track of references and remove unused models
 	// TODO: create/load default/error models
 
@@ -61,16 +62,25 @@ const model_manager = new function(){
 
 	// -- private function for loading a model resource --
 	// TODO: there's a shortcut to this
-	function load_model(name){
+	function load_model(name, part){
 		if(!name || name.length < 4) return null;
 		let mdata = model_buffer.get(name);
-		if(mdata){return mdata;}
+		if(mdata && part && mdata.parts){
+			return mdata.parts.get(part);
+		}
+		if(mdata || active_calls.get(name)){return mdata;}
 
+		// else load from file
+
+		// setting call
+		active_calls.set(name, true);
 		if(name.endsWith(".json")){
-			mdata = fetch(new Request(`models/${name}`))
-			.then(response => response.json())
-			.then(model_received_json);
+			console.error("json-format currently not supported: " + name)
+			// mdata = fetch(new Request(`models/${name}`))
+			// .then(response => response.json())
+			// .then(model_received_json);
 		} else if(name.endsWith(".obj")){
+			// console.log(mdata);
 			mdata = fetch(new Request(`models/${name}`))
 			.then(response => response.text())
 			.then(model_received_obj);
@@ -85,45 +95,6 @@ const model_manager = new function(){
 		// requests.delete(name + '_normals')
 		// requests.delete(name);
 		return mdata;
-
-		// private callback when the model is received
-		async function model_received_json(response){
-			response.name = name
-			let model = model_buffer.get(response.name);
-
-			if(response.texture_data){
-				model.stex = texture_manager.load_texture(response.texture);
-			}
-
-			if(response.triangle_index){ // solid mesh received
-
-				// normalize normals just in case
-				for (let j = 0; j < response.normal_data.length ; j=j+3) {
-					let vx = response.normal_data[j+0];
-					let vy = response.normal_data[j+1];
-					let vz = response.normal_data[j+2];
-					let vd = Math.sqrt(vx*vx+vy*vy+vz*vz);
-					response.normal_data[j+0] /= vd;
-					response.normal_data[j+1] /= vd;
-					response.normal_data[j+2] /= vd;
-				}
-				generate_edges(response);
-				// TODO error handling
-				response.sdcnt = sdcnt;
-				
-				subdivide.postMessage(response);
-				return;
-			}
-
-			if(response.shader && response.mode){ // shader and mode defined
-				// let model = model_buffer.get(response.name);
-				// console.log("subdivider finished "+response.name);
-				// response.stex = model.stex;
-				model.render = grafx.generate_custom_render_function(response);
-				model.ready = true;
-				return;
-			}
-		}
 
 		// https://webgl2fundamentals.org/webgl/lessons/webgl-load-obj-w-mtl.html
 		async function model_received_obj(text){
@@ -150,46 +121,59 @@ const model_manager = new function(){
 			];
 
 			let materialLibs = [];
+			let parts = new Map;
+			let part;
 			let geometries = [];
 			let geometry;
 			let groups = ['default'];
 			let material = 'default';
 			let object = 'default';
+			let mtlLibNames = [];
+			model_buffer.set(name, parts);
 
 			const noop = () => {};
+
+			function newPart(name){
+				if(0 != geometries.length && 'default' == object && !Map.get('default')){
+					// first geometries not stored
+					parts.set(object, geometries)
+				}
+				geometries = [];
+				parts.set(name, geometries);
+			}
 
 			function newGeometry() {
 				// If there is an existing geometry and it's
 				// not empty then start a new one.
 				if (geometry && geometry.data.position.length) {
-				geometry = undefined;
+					geometry = undefined;
 				}
 			}
 
 			function setGeometry() {
 				if (!geometry) {
-				const position = [];
-				const texcoord = [];
-				const normal = [];
-				const color = [];
-				webglVertexData = [
-					position,
-					texcoord,
-					normal,
-					color,
-				];
-				geometry = {
-					object,
-					groups,
-					material,
-					data: {
-					position,
-					texcoord,
-					normal,
-					color,
-					},
-				};
-				geometries.push(geometry);
+					const position = [];
+					const texcoord = [];
+					const normal = [];
+					const color = [];
+					webglVertexData = [
+						position,
+						texcoord,
+						normal,
+						color,
+					];
+					geometry = {
+						object,
+						groups,
+						material,
+						data: {
+						position,
+						texcoord,
+						normal,
+						color,
+						},
+					};
+					geometries.push(geometry);
 				}
 			}
 
@@ -212,47 +196,48 @@ const model_manager = new function(){
 
 			const keywords = {
 				v(parts) {
-				// if there are more than 3 values here they are vertex colors
-				if (parts.length > 3) {
-					objPositions.push(parts.slice(0, 3).map(parseFloat));
-					objColors.push(parts.slice(3).map(parseFloat));
-				} else {
-					objPositions.push(parts.map(parseFloat));
-				}
+					// if there are more than 3 values here they are vertex colors
+					if (parts.length > 3) {
+						objPositions.push(parts.slice(0, 3).map(parseFloat));
+						objColors.push(parts.slice(3).map(parseFloat));
+					} else {
+						objPositions.push(parts.map(parseFloat));
+					}
 				},
 				vn(parts) {
-				objNormals.push(parts.map(parseFloat));
+					objNormals.push(parts.map(parseFloat));
 				},
 				vt(parts) {
-				// should check for missing v and extra w?
-				objTexcoords.push(parts.map(parseFloat));
+					// should check for missing v and extra w?
+					objTexcoords.push(parts.map(parseFloat));
 				},
 				f(parts) {
-				setGeometry();
-				const numTriangles = parts.length - 2;
-				for (let tri = 0; tri < numTriangles; ++tri) {
-					addVertex(parts[0]);
-					addVertex(parts[tri + 1]);
-					addVertex(parts[tri + 2]);
-				}
+					setGeometry();
+					const numTriangles = parts.length - 2;
+					for (let tri = 0; tri < numTriangles; ++tri) {
+						addVertex(parts[0]);
+						addVertex(parts[tri + 1]);
+						addVertex(parts[tri + 2]);
+					}
 				},
 				s: noop,    // smoothing group
 				mtllib(parts, unparsedArgs) {
-				// the spec says there can be multiple filenames here
-				// but many exist with spaces in a single filename
-				materialLibs.push(material_manager.load_material(unparsedArgs));
+					// the spec says there can be multiple filenames here
+					// but many exist with spaces in a single filename
+					mtlLibNames.push(unparsedArgs);
+					materialLibs.push(material_manager.load_material(unparsedArgs));
 				},
 				usemtl(parts, unparsedArgs) {
-				material = unparsedArgs;
-				newGeometry();
+					material = unparsedArgs;
+					newGeometry();
 				},
 				g(parts) {
-				groups = parts;
-				newGeometry();
+					groups = parts;
+					newGeometry();
 				},
 				o(parts, unparsedArgs) {
-				object = unparsedArgs;
-				newGeometry();
+					newPart(unparsedArgs);
+					object = unparsedArgs;
 				},
 			};
 
@@ -277,41 +262,52 @@ const model_manager = new function(){
 				handler(parts, unparsedArgs);
 			}
 
+			console.log(parts);
+
 			// remove any arrays that have no entries.
-			for (const geometry of geometries) {
-				geometry.data = Object.fromEntries(
-					Object.entries(geometry.data).filter(([, array]) => array.length > 0));
-			}
-
+			parts.forEach((p)=>{
+				for (const geometry of geometries) {
+					geometry.data = Object.fromEntries(
+						Object.entries(geometry.data).filter(([, array]) => array.length > 0));
+				}
+			})
 			let model = model_buffer.get(name);
+
 			console.log(materialLibs);
-			const mat = materialLibs;
+			// const mat = materialLibs;
 
 
-			Promise.all(materialLibs).then(getdraw);
+			return Promise.all(materialLibs).then(getdraw);
+			// return model;
+			// return parts;
 
-			console.log(geometries);
-			console.log(materialLibs);
-			console.log(mat);
-			async function getdraw(materialLibs) {
-				console.log(geometries);
+			// console.log(geometries);
+			// console.log(materialLibs);
+			// console.log(mat);
+			function getdraw(materials) {
+				// console.log(geometries);
 				console.log(materialLibs);
+				let mat = materials[0];
+				// let mat = material_manager.load_material(mtlLibNames[0])
+				// let mdata = model_manager.load_model(name)
 				console.log(mat);
-				model.render = grafx.generate_obj_render_function(geometries, mat);
+				parts.forEach((p)=>{
+					p.draw = grafx.generate_obj_render_function(p, mat);
+					p.ready = true;
+				})
+				model.parts = parts;
+
+				model.draw = (t, c, p)=>{
+					parts.forEach((d)=>{d.draw(t, c, p)});
+				}
 				model.ready = true;
+				// model_buffer.set(name, mdata);
+				// model_buffer.set(name, parts);
+				console.log(parts, model_buffer.get(name))
+				return model;
 			}
 		}
 	};
-
-	// subdivide webworker done working
-	subdivide.onmessage = function(e){
-		let response = e.data;
-		let model = model_buffer.get(response.name);
-		console.log("subdivider finished "+response.name);
-		response.stex = model.stex;
-		model.render = grafx.generate_render_function(response);
-		model.ready = true;
-	}
 
 	// -- model_node prototype export --
 	let mproto = function(args = {}){
@@ -319,7 +315,7 @@ const model_manager = new function(){
 		args.prn && (this.parent_node = args.prn) && this.parent_node.add_child(this);
 		// trajectory_manager.generate_proto.call(this, args);
 		// attach temporary dataset to model node, see mproto.draw
-		this._mdata = load_model(args.file);
+		// this._mdata = load_model(args.file, args.part);
 		// if(args.tex && typeof(args.tex)=="string"){
 		// 	this._texture = texture_manager.load_texture(args.tex)
 		// }
@@ -357,11 +353,21 @@ const model_manager = new function(){
 	}
 
 	mproto.prototype.draw = function(){
-		if(this._mdata.ready){
-			console.log("enabling draw");
-			this.draw = this._mdata.render;
-			delete this._mdata;
+		// I got a Promise during construction
+		// which I cannot resolve from here
+		// so get a new Instance from the manager
+		let _mdata = load_model(this.args.file, this.args.part);
+		if(_mdata.ready){
+			// console.log("enabling draw");
+			this.draw = _mdata.draw;
 		}
+		// this._mdata = load_model(this.args.file, this.args.part);
+		// if(this._mdata.ready){
+		// 	console.log("enabling draw");
+		// 	this.draw = this._mdata.draw;
+		// 	// delete this._mdata;
+		// 	this._mdata = undefined;
+		// }
 	}
 
 	this.generate_proto = mproto;

@@ -50,7 +50,7 @@ const trajectory_manager = new function(){
 		trajectory_buffer.push(tdata);
 		this._tdata = tdata;
 		this.ready = 0
-		console.log(tdata);
+		// console.log(tdata);
 		// console.log(this);
 		// return null
 	}
