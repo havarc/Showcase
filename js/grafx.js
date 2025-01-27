@@ -12,6 +12,7 @@ const degtorad = Math.PI / 180;
  */
 const grafx = new function(){
 	let gl_canvas, gl;
+	let gl2d;
 	// let color_program;
 	// let texture_program;
 	// let billboard_program;
@@ -43,6 +44,7 @@ const grafx = new function(){
 		// load up webgl
 		gl = WebGLUtils.setupWebGL(gl_canvas);
 		if (!gl) {alert("Can't get WebGL"); return;}
+		console.log(gl2d);
 
 		this.white_pixel = gl.createTexture();
 		gl.bindTexture(gl.TEXTURE_2D, this.whitePixel);
@@ -133,11 +135,8 @@ const grafx = new function(){
 	// this.whitePixel = whitePixel;
 
 	this.resize_canvas = function(){
-		var width = gl_canvas.width = gl_canvas.clientWidth;
-		var height = gl_canvas.height = gl_canvas.clientHeight;
-		gl.viewport(0, 0, width, height);
-		// TODO get cam from scene_manager
-		// TODO: move to rendering
+		let width = gl_canvas.width = gl_canvas.clientWidth;
+		let height = gl_canvas.height = gl_canvas.clientHeight;
 		scene_manager.change_viewport(width, height);
 	};
 
@@ -608,8 +607,12 @@ const grafx = new function(){
 		let parts = [];
 
 		// for(let m of mesh){
-		mesh.forEach((m)=>{
-			console.log(m.data.position)
+		for (const m of mesh){
+			if(0 == m.data.position.length){
+				console.warn("skipping");
+				continue;
+			}
+			// console.log(m.data.position);
 			const vao = gl.createVertexArray();
 			gl.bindVertexArray(vao);
 
@@ -649,13 +652,13 @@ const grafx = new function(){
 			console.log(vao.mat.ambient);
 			parts.push(vao);
 		// }
-		})
+		}
 		console.log(parts);
 
 
 		// return drawing function
-		return function(transform, cam_transform, projection){
-			var defaultmatrix = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+		return function(transform, cam_transform, projection, args = {}){
+
 			gl.useProgram(obj_program);
 			// console.log(this.parent_node.gpos, this.parent_node.gorn);
 
@@ -664,8 +667,10 @@ const grafx = new function(){
 			// camera
 			gl.uniformMatrix4fv(obj_program.rtMatrix, false, cam_transform);
 			gl.uniformMatrix4fv(obj_program.vpMatrix, false, projection);
-			gl.uniform1f(obj_program.scale, 1);
+			// gl.uniform1f(obj_program.scale, 1);
 			// gl.uniform1f(obj_program.scale, this && this.args && this.args.scale || 1);
+
+			gl.uniform3fv(obj_program.scale, new Float32Array(args.scale || [1, 1, 1]));
 
 			// object to draw
 			gl.uniformMatrix4fv(obj_program.transform, false, transform);
@@ -857,6 +862,12 @@ const grafx = new function(){
 
 	// -- camera prototype --
 	let cproto = function(args){
+		if(!args || !args.prn) {return {draw: ()=>{}};}
+		if(!args.frame || !Array.isArray(args.frame)) {args.frame = [0,0,1,1];}
+		args.frame[0] = Math.max(args.frame[0], 0);
+		args.frame[1] = Math.max(args.frame[1], 0);
+		args.frame[2] = Math.min(args.frame[2], 1);
+		args.frame[3] = Math.min(args.frame[3], 1);
 		this.args = args;
 		// initialize this object
 		args.prn && (this.parent_node = args.prn) && this.parent_node.add_child(this);
@@ -896,6 +907,17 @@ const grafx = new function(){
 	
 	cproto.prototype.is_camera_node = true;
 	cproto.prototype.get_transform = function(){
+		let t = this.parent_node.get_transform();
+		if(this.target && typeof this.target.get_transform === 'function'){
+			// console.log(c, this.parent_node.pos, this.target.pos, [0,1,0]);
+			glMatrix.mat4.lookAt(t, this.parent_node.position, this.target.position, [0,1,0]);
+			glMatrix.mat4.invert(t, t) // invert the combined for reverse view
+			// glMatrix.mat4.translate(t, t, this.parent_node.pos);
+			// c = this.target.get_transform();
+			// glMatrix.mat4.invert(c, t) // invert the combined for reverse view
+		}
+		return t;
+
 		return this.parent_node.get_transform();
 	};
 	cproto.prototype.get_local_transform = function(){
@@ -933,28 +955,12 @@ const grafx = new function(){
 
 		let obj_program = shader_manager.request_shader('obj');
 		let stars_program = shader_manager.request_shader('stars');
-
 		if(!obj_program.ready || !stars_program.ready)return;
-
-
-
 		let c = this.get_transform();
-		let t;
-		if(this.target && typeof this.target.get_transform === 'function'){
-			t = this.target.get_transform();
-		} else {
-			t = new Float32Array(16);
-			glMatrix.mat4.identity(t);
-		}
-		let f1 = new Float32Array(16);
-		let f2 = new Float32Array(16);
-		
-		glMatrix.mat4.multiply(f1, c, t) // combine camera and target matrix
-		glMatrix.mat4.invert(f2,f1 ) // invert the combined for reverse view
 		let p = this.projection;
 
 
-		//*
+		/*
 		//* draw to framebuffer
 		// render to our targetTexture by binding the framebuffer
 		gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
@@ -967,45 +973,43 @@ const grafx = new function(){
 		gl.clearColor(1, 1, 1, 1);   // clear to blue
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 		// gl.clear(gl.COLOR_BUFFER_BIT);
-		
-
-		p = this.fb_projection;
-
+		// p = this.fb_projection;
 		// this.scene_head.children.forEach(function(ch){
 		// 	ch.is_model_node && ch.visible && ch.draw(ch.get_transform(), c, p, ch.args)
 		// });
-		this.ghost && this.ghost.draw(this.ghost.get_transform(), c, p, this.ghost.args);
-
-
+		// this.ghost && this.ghost.draw(this.ghost.get_transform(), c, p, this.ghost.args);
+		//*/
 
 
 		//* draw to the canvas
 		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 		// Tell WebGL how to convert from clip space to pixels
-		gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+		let frame = this.args.frame;
+		gl.viewport(frame[0]*gl.canvas.width, frame[1]*gl.canvas.height, frame[2]*gl.canvas.width, frame[3]*gl.canvas.height);
+		// gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 		// Clear the canvas AND the depth buffer.
-		gl.clearColor(0, 0, 0, 1);   // clear to white
-		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+		// gl.clearColor(0, 0, 0, 1);   // clear to white
+		// gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
 		gl.depthMask(false);
 		if(this.draw_stars) draw_stars(c);
 
 		
+		// ---- render solid objects ----
 		//TODO: cull objects outside of view
 		// ! 23-03-03 render needs access to parent
-		// render solid objects
 		// gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 		// gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 		// gl.enable(gl.DEPTH_TEST);
-		p = this.projection;
 		gl.depthMask(true);
 		this.scene_head.children.forEach(function(ch){
 			ch.is_model_node && ch.visible && ch.draw(ch.parent_node.get_transform(), c, p, ch.args)
+			// console.log(ch, ch.args);
 			// ch.is_model_node && ch._mdata.render(0)
 		});
 
 
-		// render particles
+		// ---- render particles ----
 		// gl.blendFunc(gl.ONE, gl.ONE);
 		// gl.disable(gl.DEPTH_TEST);
 		gl.depthMask(false);
@@ -1016,9 +1020,7 @@ const grafx = new function(){
 
 		// dBillboard(lod, c, p)
 
-
-
-
+		
 
 		/*
 		// draw lines
@@ -1031,7 +1033,7 @@ const grafx = new function(){
 		gl.uniformMatrix4fv(color_program.vpMatrix, false, this.projection);
 		this._line_buffer.forEach(function(l){
 			// gl.uniformMatrix4fv(color_program.mvMatrix, false, mat4.create());
-			gl.uniform3fv(color_program.position, l.pos);
+			gl.uniform3fv(color_program.position, l.gpos);
 			gl.uniform4fv(color_program.orientation, l.orn);
 			gl.bindBuffer(gl.ARRAY_BUFFER, l);
 			gl.vertexAttribPointer(color_program.vertex, 3, gl.FLOAT, false, 0, 0);
@@ -1100,11 +1102,14 @@ const grafx = new function(){
 
 	cproto.prototype.change_projection = function(proj_params){
 		proj_params = proj_params || {};
+		let frame = this.args.frame || [0,0,1,1];
 		this.parameters.FOV = proj_params.FOV || this.parameters.FOV;
 		this.parameters.width = proj_params.width || this.parameters.width;
 		this.parameters.height = proj_params.height || this.parameters.height;
 		// mat4.perspective(projection, parameters.FOV/180*Math.PI, parameters.width/parameters.height, 0.1, 100);
-		set_perspective(60, this.parameters.width/this.parameters.height, 0.1, 1000, this.projection);
+		console.log(frame);
+		set_perspective(60, ((frame[2])*this.parameters.width)/((frame[3])*this.parameters.height), 0.1, 1000, this.projection);
+		// set_perspective(60, this.parameters.width/this.parameters.height, 0.1, 1000, this.projection);
 		set_perspective(60, 1, 0.1, 1000, this.fb_projection);
 		console.log(this.projection, this.fb_projection);
 
@@ -1138,7 +1143,7 @@ const grafx = new function(){
 
 	cproto.prototype.get_position_on_screen = function(obj){
 		if(!obj || !obj.get_transform){return null};
-		let tVec = obj.gpos;
+		let tVec = new Float32Array(obj.position);
 		// let tVec = new Float32Array([tpos[0], tpos[1], tpos[2], 1.0])
 		// let tVec = new Float32Array(3);
 
@@ -1161,6 +1166,15 @@ const grafx = new function(){
 
 		glMatrix.vec3.transformMat4(tVec, tVec, f1);
 		glMatrix.vec3.transformMat4(tVec, tVec, p);
+		tVec = [tVec[0], tVec[1]];
+
+		let frame = this.args.frame;
+		// translate to canvas
+		tVec[0] = (tVec[0]+1)/2 * gl_canvas.width;
+		tVec[1] = (-tVec[1]+1)/2 * gl_canvas.height;
+		//translate to viewport;
+		tVec[0] = frame[2]*tVec[0]+(frame[0]*gl_canvas.width);
+		tVec[1] = frame[3]*tVec[1]+(frame[1]*gl_canvas.height);
 
 		return tVec;
 	}

@@ -7,6 +7,7 @@ uber shader?
 proper obj lighting
 
 camera transform and camera-target ✓
+rendering partial viewport ✓
 
 unit definition ✓
 unit-selector ✓
@@ -17,7 +18,7 @@ planned movement
 input records coord on screen-> ✓
 camera needs to records plane coords ✓
 
-rotation to target
+rotation to target ✓
 collision detection
 repulsion bubble
 vertical movement

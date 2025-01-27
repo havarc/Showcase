@@ -79,6 +79,7 @@ const model_manager = new function(){
 			// mdata = fetch(new Request(`models/${name}`))
 			// .then(response => response.json())
 			// .then(model_received_json);
+			return {draw: ()=>{}};
 		} else if(name.endsWith(".obj")){
 			// console.log(mdata);
 			mdata = fetch(new Request(`models/${name}`))
@@ -122,24 +123,24 @@ const model_manager = new function(){
 
 			let materialLibs = [];
 			let parts = new Map;
-			let part;
 			let geometries = [];
 			let geometry;
 			let groups = ['default'];
 			let material = 'default';
 			let object = 'default';
 			let mtlLibNames = [];
-			model_buffer.set(name, parts);
+			// model_buffer.set(name, parts);
 
 			const noop = () => {};
 
 			function newPart(name){
-				if(0 != geometries.length && 'default' == object && !Map.get('default')){
+				if(0 != geometries.length && 'default' == object && !parts.get('default')){
 					// first geometries not stored
 					parts.set(object, geometries)
 				}
 				geometries = [];
 				parts.set(name, geometries);
+				geometry = undefined;
 			}
 
 			function newGeometry() {
@@ -195,47 +196,47 @@ const model_manager = new function(){
 			}
 
 			const keywords = {
-				v(parts) {
+				v(parsed) {
 					// if there are more than 3 values here they are vertex colors
-					if (parts.length > 3) {
-						objPositions.push(parts.slice(0, 3).map(parseFloat));
-						objColors.push(parts.slice(3).map(parseFloat));
+					if (parsed.length > 3) {
+						objPositions.push(parsed.slice(0, 3).map(parseFloat));
+						objColors.push(parsed.slice(3).map(parseFloat));
 					} else {
-						objPositions.push(parts.map(parseFloat));
+						objPositions.push(parsed.map(parseFloat));
 					}
 				},
-				vn(parts) {
-					objNormals.push(parts.map(parseFloat));
+				vn(parsed) {
+					objNormals.push(parsed.map(parseFloat));
 				},
-				vt(parts) {
+				vt(parsed) {
 					// should check for missing v and extra w?
-					objTexcoords.push(parts.map(parseFloat));
+					objTexcoords.push(parsed.map(parseFloat));
 				},
-				f(parts) {
+				f(parsed) {
 					setGeometry();
-					const numTriangles = parts.length - 2;
+					const numTriangles = parsed.length - 2;
 					for (let tri = 0; tri < numTriangles; ++tri) {
-						addVertex(parts[0]);
-						addVertex(parts[tri + 1]);
-						addVertex(parts[tri + 2]);
+						addVertex(parsed[0]);
+						addVertex(parsed[tri + 1]);
+						addVertex(parsed[tri + 2]);
 					}
 				},
 				s: noop,    // smoothing group
-				mtllib(parts, unparsedArgs) {
+				mtllib(parsed, unparsedArgs) {
 					// the spec says there can be multiple filenames here
 					// but many exist with spaces in a single filename
 					mtlLibNames.push(unparsedArgs);
 					materialLibs.push(material_manager.load_material(unparsedArgs));
 				},
-				usemtl(parts, unparsedArgs) {
+				usemtl(parsed, unparsedArgs) {
 					material = unparsedArgs;
 					newGeometry();
 				},
-				g(parts) {
-					groups = parts;
+				g(parsed) {
+					groups = parsed;
 					newGeometry();
 				},
-				o(parts, unparsedArgs) {
+				o(parsed, unparsedArgs) {
 					newPart(unparsedArgs);
 					object = unparsedArgs;
 				},
@@ -245,33 +246,29 @@ const model_manager = new function(){
 			const lines = text.split('\n');
 			for (let lineNo = 0; lineNo < lines.length; ++lineNo) {
 				const line = lines[lineNo].trim();
-				if (line === '' || line.startsWith('#')) {
-				continue;
-				}
+				if (line === '' || line.startsWith('#')) continue;
 				const m = keywordRE.exec(line);
-				if (!m) {
-				continue;
-				}
+				if (!m) continue;
 				const [, keyword, unparsedArgs] = m;
-				const parts = line.split(/\s+/).slice(1);
+				const parsed = line.split(/\s+/).slice(1);
 				const handler = keywords[keyword];
 				if (!handler) {
-				console.warn('unhandled keyword:', keyword);  // eslint-disable-line no-console
-				continue;
+					console.warn('unhandled keyword:', keyword);  // eslint-disable-line no-console
+					continue;
 				}
-				handler(parts, unparsedArgs);
+				handler(parsed, unparsedArgs);
 			}
 
-			console.log(parts);
 
 			// remove any arrays that have no entries.
-			parts.forEach((p)=>{
-				for (const geometry of geometries) {
-					geometry.data = Object.fromEntries(
-						Object.entries(geometry.data).filter(([, array]) => array.length > 0));
-				}
-			})
-			let model = model_buffer.get(name);
+			// done in draw call
+			// for(const p of parts){
+			// 	for (const geometry of p) {
+			// 		geometry.data = Object.fromEntries(
+			// 			Object.entries(geometry.data).filter(([, array]) => array.length > 0));
+			// 	}
+			// }
+			// let model = model_buffer.get(name);
 
 			console.log(materialLibs);
 			// const mat = materialLibs;
@@ -291,20 +288,20 @@ const model_manager = new function(){
 				// let mat = material_manager.load_material(mtlLibNames[0])
 				// let mdata = model_manager.load_model(name)
 				console.log(mat);
-				parts.forEach((p)=>{
+				for(const [key, p] of parts){
 					p.draw = grafx.generate_obj_render_function(p, mat);
 					p.ready = true;
-				})
-				model.parts = parts;
-
-				model.draw = (t, c, p)=>{
-					parts.forEach((d)=>{d.draw(t, c, p)});
 				}
-				model.ready = true;
+				mdata.parts = parts;
+
+				mdata.draw = (...p)=>{
+					parts.forEach((d)=>{d.draw(...p)});
+				}
+				mdata.ready = true;
 				// model_buffer.set(name, mdata);
 				// model_buffer.set(name, parts);
-				console.log(parts, model_buffer.get(name))
-				return model;
+				console.log(mdata.parts, model_buffer.get(name))
+				return mdata;
 			}
 		}
 	};
@@ -316,6 +313,7 @@ const model_manager = new function(){
 		// trajectory_manager.generate_proto.call(this, args);
 		// attach temporary dataset to model node, see mproto.draw
 		// this._mdata = load_model(args.file, args.part);
+		this._mdata = load_model(args.file, args.part);
 		// if(args.tex && typeof(args.tex)=="string"){
 		// 	this._texture = texture_manager.load_texture(args.tex)
 		// }
@@ -357,6 +355,10 @@ const model_manager = new function(){
 		// which I cannot resolve from here
 		// so get a new Instance from the manager
 		let _mdata = load_model(this.args.file, this.args.part);
+		if(!_mdata){
+			this.visible = false;
+			return;
+		}
 		if(_mdata.ready){
 			// console.log("enabling draw");
 			this.draw = _mdata.draw;

@@ -85,6 +85,13 @@ const trajectory_manager = new function(){
 		set: function(args){this._tdata.set(qfill(args.slice(0,4)), 18);}
 	});
 
+	Object.defineProperty(tproto.prototype, 'position', {
+		get: function(){
+			let t = this.get_transform();
+			return(t.subarray(12, 15));
+			// return(this._tdata.subarray(50, 53));
+		}
+	});
 	Object.defineProperty(tproto.prototype, 'gpos', {
 		get: function(){
 			let t = this.get_transform();

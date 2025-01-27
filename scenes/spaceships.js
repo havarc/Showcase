@@ -2,16 +2,17 @@ console.log("loading space");
 
 var input_rotate_cam = false;
 // params
-let hover_dist = 1; // distance (x size) at which units don't face direction when moving
+let hover_dist = 2; // distance (x size) at which units don't face direction when moving
 let x = 0, y = 1, z = 2;
 
 let gradTex = texture_manager.load_texture("rg.png") 
 // actual inits and mechanics go here
 var sh1 = new scene_head(); //create scene head
 var units = [];
-let select_dist = 100;
+let select_dist = 10;
 let rOffset = 0;
 let lOffset = 0;
+let shift = false; // shift-key
 
 //* ship 1
 class Spaceship{
@@ -33,12 +34,14 @@ class Spaceship{
 		});
 		this.#my_model = new model_node({
 			prn: this.#my_object,
-			file: 'Vulture.obj'
+			file: 'Vulture.obj',
+			scale: [1, 1, 1]
 		})
 		this.#my_selector = new model_node({
 			prn: this.#my_object,
 			file: "selector.obj",
 			visible: false,
+			scale: [this.size, this.size, this.size]
 		})
 		this.#my_default_target = new object_node({
 			prn: sh1,
@@ -55,25 +58,29 @@ class Spaceship{
 		this.#my_plume.is_particle_node = true;
 		this.#my_plume.visible = false;
 		this.#my_object.size = 4;
-		this.#my_selector.args.scale = 4;
+		// this.#my_selector.args.scale = [4, 1, 4];
 		
 		// this.cycle = cycle;
 		trajectory_manager.cycle_objects.push(this);
 		this.selected = false;
-		this.status = 0;
+		this.status = 5;
 		units.push(this);
 		this.target = this.#my_default_target;
 			
 	}
 
+	// relay position
+	get pos(){return this.#my_object.pos;}
+	get gpos(){return this.#my_object.gpos;}
+
 	get_object(){
 		return this.#my_object; // required for selecting
-	}
+	};
 	select(stat){
 		if(stat)console.log(this.name, "selected");
 		this.selected = stat;
 		this.#my_selector.visible = stat;
-	}
+	};
 	set_default_target(){
 		// TODO: set pos and orn
 		this.#my_default_target.pos = this.#my_object.pos;
@@ -83,96 +90,110 @@ class Spaceship{
 		this.#my_default_target.acc = [0,0,0];
 		this.#my_default_target.rot = [0,0,0,1];
 
-		this.target = this.#my_default_target;
-	}
+		// this.target = this.#my_default_target;
+	};
 	set_target_pos(pos){
 		this.set_default_target;
 		this.#my_default_target.pos = pos;
-	}
+		console.log("set target pos")
+	};
 	cycle(ms){
 		// console.log("cycling");
-		if(this.target && typeof this.target.get_transform === 'function'){
-			let ts = this.#my_object.get_transform();
-			let tp = this.target.get_transform();
-			// let s = ts.subarray(12, 15);
-			// let p = tp.subarray(12, 15);
-			// let s = this.#my_object.gpos;
-			// let p = this.#my_object.target.gpos;
-			// console.log(p);
-			let s = [0,0,0]; // ship
-			let p = [0,0,0]; // target
-			let r = [0,0,0]; // relative point
-		
-			let its = glMatrix.mat4.create();
-			glMatrix.mat4.invert(its, ts);
-			glMatrix.vec3.transformMat4(s, s, ts);
-			glMatrix.vec3.transformMat4(p, p, tp);
-			glMatrix.vec3.transformMat4(r, p, its);
-			let d = Math.sqrt((r[0]*r[0])+(r[1]*r[1])+(r[2]*r[2]));
-			r = [r[0]/d, r[1]/d, r[2]/d];
+		if(!this.target || typeof this.target.get_transform !== 'function'){return}
+		let ts = this.#my_object.get_transform();
+		let tp = this.target.get_transform();
+		// let s = ts.subarray(12, 15);
+		// let p = tp.subarray(12, 15);
+		// let s = this.#my_object.gpos;
+		// let p = this.#my_object.target.gpos;
+		// console.log(p);
+		let s = [0,0,0]; // ship
+		let p = [0,0,0]; // target
+		let r = [0,0,0]; // relative point
 	
+		let its = glMatrix.mat4.create();
+		glMatrix.mat4.invert(its, ts);
+		glMatrix.vec3.transformMat4(s, s, ts);
+		glMatrix.vec3.transformMat4(p, p, tp);
+		glMatrix.vec3.transformMat4(r, p, its);
+		let d = Math.sqrt((r[0]*r[0])+(r[1]*r[1])+(r[2]*r[2]));
+		if(1>d){return;}
+		r = [r[0]/d, r[1]/d, r[2]/d];
+
+
+		let dir = [p[0]-s[0], p[1]-s[1], p[2]-s[2]];
+		// let dir = [s[0]-p[0], s[1]-p[1], s[2]-p[2]];
+		let dist = glMatrix.vec3.length(dir);
+		let orn = [dir[0]/dist, dir[1]/dist, dir[2]/dist];
+		// this.#my_object.set_acceleration([orn[0]/1, orn[1]/1, orn[2]/1]);
 	
-			let dir = [p[0]-s[0], p[1]-s[1], p[2]-s[2]];
-			let dist = glMatrix.vec3.length(dir);
-			let orn = [dir[0]/dist, dir[1]/dist, dir[2]/dist];
-			// this.#my_object.set_acceleration([orn[0]/1, orn[1]/1, orn[2]/1]);
-		
-			if(dist > hover_dist * this.size){ // too far to just casually hover there
-	
-				if(r[2] < 0.9){ // not even facing it
-					this.#my_object.set_rotation_axan([0,1,0], -Math.sign(r[0]));
-				}
-				if(Math.abs(r[0]) < 0.1 && Math.abs(r[0]) > 0.01){ // almost there
-					this.#my_object.set_rotation_axan([0,1,0], -r[0]/2);
-					if(this.status == 2)	this.#my_plume.visible = true;
-				}
-				if(Math.abs(r[0]) < 0.01){
-					this.#my_object.set_rotation_quat([0,0,0,1])
-					if(this.status == 2)	this.#my_plume.visible = true;
-				}
-			} else {
-				// TODO: check for orientation
-				// otherwise casually hover there
+		if(dist > hover_dist * this.size){ // too far to just casually hover there
+
+			if(r[2] < 0.9){ // not even facing it
+				this.#my_object.set_rotation_axan([0,1,0], -Math.sign(r[0]));
 			}
-			
-			let vel = this.#my_object.vel;
-			let v = glMatrix.vec3.length(vel);
-			let b = glMatrix.vec3.normalize(glMatrix.vec3.create(), vel);
-			Math.sqrt((vel[0]*vel[0])+(vel[1]*vel[1])+(vel[2]*vel[2]))
-			let a = this.max_acc; // de/acceleration
-			
-			if(v == 0 && dist && dist > 0.5){ // not at destination
-				// console.log("accelerating", dist, this.#my_object.dist, v, orn, this.#my_object.acc);
-				// console.log("ship, point: ", s, p)
-				this.#my_object.set_acceleration([orn[0]*a,orn[1]*a,orn[2]*a]);
-				this.status = 2; // accelerating
+			if(Math.abs(r[0]) < 0.1 && Math.abs(r[0]) > 0.01){ // almost there
+				this.#my_object.set_rotation_axan([0,1,0], -r[0]/2);
+				if(this.status == 2)	this.#my_plume.visible = true;
 			}
-			if(this.status !=3 && v >= this.max_speed){
+			if(Math.abs(r[0]) < 0.01){
+				this.#my_object.set_rotation_quat([0,0,0,1])
+				if(this.status == 2)	this.#my_plume.visible = true;
+			}
+		} else {
+			// TODO: check for orientation
+			// otherwise casually hover there
+		}
+		// console.log("status", this.#my_object.vel, this.#my_object.acc);
+		
+		let vel = this.#my_object.vel;
+		let v = glMatrix.vec3.length(vel);
+		let b = glMatrix.vec3.normalize(glMatrix.vec3.create(), vel);
+		// Math.sqrt((vel[0]*vel[0])+(vel[1]*vel[1])+(vel[2]*vel[2]))
+		let a = this.max_acc; // de/acceleration
+		// console.log(dist);
+		
+		if((dist && dist < 2)){ // not at destination
+			// console.log("stopped", dist, this.#my_object.vel, v, this.#my_object.acc);
+			this.#my_object.clr_acceleration();
+			this.#my_object.set_velocity([0,0,0]);
+			this.status = 5; // stopped
+			// console.log("stopped", dist, this.#my_object.vel, v, this.#my_object.acc);
+		} else {
+			// console.log("accelerating", dist, this.#my_object.dist, v, orn, this.#my_object.acc);
+			// console.log("ship, point: ", s, p)
+			this.#my_object.set_acceleration([orn[0]*a,orn[1]*a,orn[2]*a]);
+			this.status = 2; // accelerating
+		
+			if(this.status !=3 && v >= this.max_speed){ // not at destination and max speed
 				this.#my_object.set_acceleration([0,0,0]);
 				// console.log("max speed", dist, this.#my_object.dist, v, b);
 				this.status = 3; // going
 				this.#my_plume.visible = false;
 			}
-			if(this.status != 4 && v !=0 && dist && (dist < (v*(v/a)/2) || Math.abs(orn[0]-b[0]) > 0.1 || Math.abs(orn[1]-b[1]) > 0.1 || Math.abs(orn[2]-b[2]) > 0.1)){
-				this.#my_object.set_acceleration([-b[0]*a, -b[1]*a, -b[2]*a]);
+			if((2 == this.status || 3 == this.status) && v !=0 && dist && (dist < ((v*v)/(2*a)) || Math.abs(orn[0]-b[0]) > 0.1 || Math.abs(orn[1]-b[1]) > 0.1 || Math.abs(orn[2]-b[2]) > 0.1)){
+				this.#my_object.set_acceleration([-orn[0]*a, -orn[1]*a, -orn[2]*a]);
 				// console.log("decelerating", this.#my_object.acc, dist, v, b, a, orn);
 				this.status = 4; // decelerating
 				this.#my_plume.visible = false;
 			}
-			if(this.status == 4 && v < 0.2){
-				// console.log("stopped", dist, this.#my_object.dist, v, this.#my_object.acc);
-				this.#my_object.set_acceleration([0,0,0]);
-				this.#my_object.set_velocity([0,0,0]);
-				this.status = 5; // stopped
-			}
 		}
+	}
+	report(){
+		console.log(this.#my_selector)
 	}
 }
 let sp1 = new Spaceship({
 	name: "sp1",
-	pos: [2, 0, 1],
+	pos: [0, 0, 0],
 	orn: [0, 0, 0, 1],
 	size: 4
+})
+
+new model_node({
+	prn: sh1,
+	file: "selector.obj",
+	pos: [1, 1, 1]
 })
 
 input.set_keydown('KeyR', ()=>{
@@ -208,6 +229,7 @@ var cm = new camera_node({
 	prn: cn,
 	pos: [0, 0, 0],
 	orn: [0, 0, 0, 1],
+	frame: [0, 0, 1, 1],
 	target: ch
 });
 cm.draw_stars = true;
@@ -245,7 +267,7 @@ let f = new object_node({
 	pos: [0, 0, 0],
 	orn: [0, 0, 0, 1]
 })
-f.draw = grafx.generate_movement_indicator(sp1)
+f.draw = grafx.generate_movement_indicator(sp1.get_object())
 f.visible = false;
 f.is_model_node = true;
 
@@ -274,12 +296,18 @@ input.set_mousedown(1, function(event){
 	// 	ee.visible = false;
 	// }
 
-	units.forEach((u)=>{
-		vpos = cm.get_position_on_screen(u.get_object());
-		vpos[0] = (vpos[0]+1)/2 * gl_canvas.clientWidth;
-		vpos[1] = (-vpos[1]+1)/2 * gl_canvas.clientHeight;
-		u.select(glMatrix.vec2.dist(vpos, cpos) < select_dist);
-	})
+	if(shift){
+		console.log("shift");
+		units.forEach((u)=>{
+			vpos = cm.get_position_on_screen(u.get_object());
+			u.select(u.selected || glMatrix.vec2.dist(vpos, cpos) < select_dist);
+		})
+	}else{
+		units.forEach((u)=>{
+			vpos = cm.get_position_on_screen(u.get_object());
+			u.select(glMatrix.vec2.dist(vpos, cpos) < select_dist);
+		})
+	}
 })
 
 // camera zoom
@@ -287,6 +315,10 @@ input.set_mousewheel(0, function(y){
 	cn.pos[2]+=y/100;
 	nav_plane.args.scale = cn.pos[2]/20;
 })
+
+
+input.set_keydown("Shift", ()=>{shift = true;})
+input.set_keyup("Shift",function(){shift = false});
 
 input.set_keydown('KeyW',function(){
 	let n = [0,0,0];
@@ -319,6 +351,7 @@ input.set_keyup('KeyA',function(){ch.set_velocity([0,0,0])});
 input.set_keyup('KeyD',function(){ch.set_velocity([0,0,0])});
 
 input.set_keydown('KeyE', ()=>{f.visible = !f.visible;})
+input.set_keydown('KeyB', ()=>{sp1.report();})
 input.set_keydown('KeyT', ()=>{
 	let t = sp1.target.gpos;
 	let m = sp1.gpos;

@@ -32,7 +32,7 @@ window.onload = async function() {
 		top: '200px', left: '0px',
 		title: 'Code',
 		content: [
-			{	type: 'dropdown',	options:[{option: "bb.js", name:"spaceship"}, {option: "car.js", name:"car"}], select:load_setup	},
+			{	type: 'dropdown',	options:[{option: "spaceships.js", name:"spaceships"}, {option: "car.js", name:"car"}, {option: "drone_bay.js", name:"drone bay"}], select:load_setup	},
 			{	type: 'linebreak'},
 			{	type: 'code',	lines: 20, columns: 50, text: 'something', id: "code_field"	},
 			{	type: 'linebreak'},
@@ -42,7 +42,7 @@ window.onload = async function() {
 	};
 
 	new gui.widget(c);
-	get("scenes/bb.js").then(setup_received);
+	get("scenes/spaceships.js").then(setup_received);
 	// settings.widgets.forEach(function(w){new gui.widget(w)});
 
 	function load_setup (params){

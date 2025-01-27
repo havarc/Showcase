@@ -26,6 +26,7 @@ var gui = new function(){
 	// load config from localStorage
 	// TODO: load from file/web
 	this.init = function(){
+		settings = settings || {};
 		snapdist = settings.gui.snapdist || snapdist;
 		container = document.getElementById('main');
 		// for mousedown on handlebars
@@ -285,7 +286,7 @@ var gui = new function(){
 			});
 
 		// resizes the widget
-		// don't ask how this works
+		// don't ask how this works, I don't even know, and I wrote this!
 		if(0 <= hselm){
 			switch(mm){
 				case 2: active_widget.style.width = org_w - hselm + org_l + 'px';

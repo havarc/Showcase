@@ -9,7 +9,7 @@ uniform mat4 vpMatrix;
 uniform mat4 transform;
 uniform vec3 position;
 uniform vec4 orientation;
-uniform float scale;
+uniform vec3 scale;
 
 out vec3 v_normal;
 out vec3 v_surfaceToView;

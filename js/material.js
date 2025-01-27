@@ -40,11 +40,11 @@ const material_manager = new function(){
 		shininess:      new Float32Array([0]),
 		ambient:        new Float32Array([1, 1, 1]),
 		diffuse:        new Float32Array([1, 1, 1]),
-		specular:       new Float32Array([0, 0, 0]),
+		specular:       new Float32Array([0.5, 0.5, 0.5]),
 		emissive:       new Float32Array([0, 0, 0]),
 		opticalDensity: new Float32Array([1]),
-		opacity:        new Float32Array([0]),
-		illum:          new Float32Array([0]),
+		opacity:        new Float32Array([1]),
+		illum:          new Float32Array([2]),
 		texture:        grafx.whitePixel
 	}
 
