@@ -13,20 +13,30 @@ let select_dist = 10;
 let rOffset = 0;
 let lOffset = 0;
 let shift = false; // shift-key
+let ctrl = false;
+let groups = [];
 
 //* ship 1
 class Spaceship{
-	#my_object;
+	#my_object; // base position
+	#my_vertical; //vertical rotation
 	#my_model;
 	#my_selector;
 	#my_plume;
 	#my_default_target;
+	#selected;
 	constructor(args){
 		this.name = args.name || "some ship";
 		this.max_speed = args.max_speed || 10;
 		this.max_acc = args.max_acc || 1;
 		this.size = args.size || 4;
 		this.#my_object = new object_node({
+			prn: sh1,
+			pos: args.pos || [0,0,0],
+			vel: args.vel || [0,0,0],
+			orn: args.orn || [0, 0, 0, 1]
+		});
+		this.#my_vertical = new object_node({
 			prn: sh1,
 			pos: args.pos || [0,0,0],
 			vel: args.vel || [0,0,0],
@@ -72,6 +82,11 @@ class Spaceship{
 	// relay position
 	get pos(){return this.#my_object.pos;}
 	get gpos(){return this.#my_object.gpos;}
+	set selected(stat){
+		this.#selected = !!stat;
+		this.#my_selector.visible = !!stat;
+	}
+	get selected(){return this.#selected}
 
 	get_object(){
 		return this.#my_object; // required for selecting
@@ -196,17 +211,6 @@ new model_node({
 	pos: [1, 1, 1]
 })
 
-input.set_keydown('KeyR', ()=>{
-	console.log("setting target");
-	let p = cm.get_point_on_plane(); // absolute point
-	// sp1.dist = dist;
-
-	units.forEach((u)=>{
-		if(!u.selected)return;
-		u.set_target_pos(p);
-	})
-
-})
 
 //* CAMERA SETUP
 // horizontal camera stick
@@ -297,15 +301,15 @@ input.set_mousedown(1, function(event){
 	// }
 
 	if(shift){
-		console.log("shift");
+		// console.log("shift");
 		units.forEach((u)=>{
 			vpos = cm.get_position_on_screen(u.get_object());
-			u.select(u.selected || glMatrix.vec2.dist(vpos, cpos) < select_dist);
+			u.selected = u.selected || glMatrix.vec2.dist(vpos, cpos) < select_dist;
 		})
 	}else{
 		units.forEach((u)=>{
 			vpos = cm.get_position_on_screen(u.get_object());
-			u.select(glMatrix.vec2.dist(vpos, cpos) < select_dist);
+			u.selected = glMatrix.vec2.dist(vpos, cpos) < select_dist;
 		})
 	}
 })
@@ -317,8 +321,79 @@ input.set_mousewheel(0, function(y){
 })
 
 
+input.set_keydown('KeyR', ()=>{
+	console.log("setting target");
+	let p = cm.get_point_on_plane(); // absolute point
+	let count = 0;
+	let source = [0,0,0];
+	let pos = [0,0,0];
+	// sp1.dist = dist;
+
+	units.forEach((u)=>{
+		if(!u.selected)return;
+		count ++;
+		source[0] += u.pos[0];
+		source[1] += u.pos[1];
+		source[2] += u.pos[2];
+	})
+
+	source[0] /= count;
+	source[1] /= count;
+	source[2] /= count;
+
+	units.forEach((u)=>{
+		if(!u.selected)return;
+		pos = [
+			u.pos[0]-source[0]+p[0],
+			u.pos[1]-source[1]+p[1],
+			u.pos[2]-source[2]+p[2],
+		]
+		u.set_target_pos(pos);
+	})
+
+
+})
+
 input.set_keydown("Shift", ()=>{shift = true;})
-input.set_keyup("Shift",function(){shift = false});
+input.set_keyup("Shift",()=>{shift = false});
+input.set_keydown("Control", ()=>{ctrl = true;})
+input.set_keyup("Control",()=>{ctrl = false});
+
+
+input.set_keydown('Digit1',()=>{
+	if(ctrl){
+		groups[1] = []
+		units.forEach((u)=>{
+			u.selected?groups[1].push(u):false;
+		})
+	} else {
+		units.forEach((u)=>{u.selected = false;})
+		groups[1].forEach((u)=>{u.selected = true;})
+	}
+});
+input.set_keydown('Digit2',()=>{
+	if(ctrl){
+		groups[2] = []
+		units.forEach((u)=>{
+			u.selected?groups[2].push(u):false;
+		})
+	} else {
+		units.forEach((u)=>{u.selected = false;})
+		groups[2].forEach((u)=>{u.selected = true;})
+	}
+});
+input.set_keydown('Digit3',()=>{
+	if(ctrl){
+		groups[3] = []
+		units.forEach((u)=>{
+			u.selected?groups[3].push(u):false;
+		})
+	} else {
+		units.forEach((u)=>{u.selected = false;})
+		groups[3].forEach((u)=>{u.selected = true;})
+	}
+});
+
 
 input.set_keydown('KeyW',function(){
 	let n = [0,0,0];
@@ -405,7 +480,7 @@ let w1 = {
 	top: '12px', left: '100px',
 	title: 'Buttons',
 	content: [
-		{	type: 'button',	icon: 'move', click: 'gui.toggle_bars'	},
+		// {	type: 'button',	icon: 'move', click: 'gui.toggle_bars'	},
 		// {	type: 'button',	icon: 'refresh', click:	'setup.reload' },
 		// {	type: 'button',	icon: 'gear', click: 'gui.save_settings' },
 		{	type: 'button',	icon: 'left', click: load_ships_left },
@@ -422,6 +497,8 @@ let w2 = {
 		{type: 'text', text: "Welcome,"},
 		{type: 'linebreak'},
 		{type: 'text', text: "move the camera with WASD, create ships left and right with the arrow buttons, select ships with left mouse button, move selected ships to a position on the Y-plane with R" },
+		{type: 'linebreak'},
+		{type: 'text', text: "hold shift for multi-select, groups 1-3 are available, hold ctrl to assign"},
 		{type: 'linebreak'},
 		{type: 'text', text: "stepper changes select radius"},
 		{type: 'number', min: 20, max: 200, step: 10, value: select_dist, click: set_max_speed}

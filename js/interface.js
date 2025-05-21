@@ -1,7 +1,9 @@
 "use strict";
 
 var socket;
+/*jslint-disable*/
 
+/*jslint-enable*/
 /**
  * @module gui
  * generates widgets, which contain buttons and various other elements
@@ -117,24 +119,85 @@ var gui = new function(){
 
 		// widget title
 		let t = document.createElement('div');
-		t.className = 'widget-title';
-		t.innerHTML = wdgt.title;
+		t.className = 'widget-title mover';
+		// t.innerHTML = wdgt.title;
 		t.addEventListener('mousedown', t_onmousedown);
-		let e = document.createElement('div');
+		t.innerHTML = `<p>${wdgt.title}</p>`;
+
+
+		// add lock button
+		let btn_lock = document.createElement('div');
+		btn_lock.className = 'button icon icon-unlock tooltip lock';
+		// btn_lock.innerHTML = '<span class="tooltiptext">Un/Lock widget moving and resizing</span>'
+		// TODO: add actual functions (internal) 
+		btn_lock.addEventListener('mousedown', lock_widget) 
+		btn_lock.setAttribute("placeholder", "Hello Button");
+		t.appendChild(btn_lock);
+
+		function lock_widget(event){
+			let d = event.srcElement;
+			// let w = d.parentElement.parentElement;
+			if(d.classList.contains("icon-unlock")){
+				t.removeEventListener('mousedown', t_onmousedown);
+			} else {
+				t.addEventListener('mousedown', t_onmousedown);
+			}
+
+			// toggle icon
+			t.classList.toggle("mover"); // cursor
+			d.classList.toggle("icon-lock");
+			d.classList.toggle("icon-unlock");
+
+			// get handle-bars and toggle them
+			let bars = wdgt.getElementsByClassName("widget-handle");
+			for (let c of bars){
+				c.classList.toggle("widget-handle-on");
+				c.classList.toggle("widget-handle-off");
+			}
+		}
+
+		// add minimize button
+		let btn_min = document.createElement('div');
+		btn_min.className = 'button icon icon-down tooltip min';
+		btn_min.innerHTML = '<span class="tooltiptext">Un/Minimize widget</span>'
+		// TODO: add actual functions (internal) 
+		btn_min.addEventListener('mousedown', min_widget) 
+		btn_min.setAttribute("placeholder", "Hello Button");
+		t.appendChild(btn_min);
+
+		function min_widget(event){
+			let d = event.srcElement;
+			// let w = d.parentElement.parentElement;
+
+			if(d.classList.contains("icon-down")){
+				wdgt.storedHeight = wdgt.offsetHeight;
+				wdgt.style.height = "2.5rem";
+			} else {
+				wdgt.style.height = wdgt.storedHeight + 'px';
+			}
+
+			// toggle icon
+			d.classList.toggle("icon-up");
+			d.classList.toggle("icon-down");
+		}
+
+
+
 		// east handlebar
-		e.className = 'widget-handle widget-east-handle';
+		let e = document.createElement('div');
+		e.className = 'widget-handle widget-east-handle widget-handle-on';
 		e.addEventListener('mousedown', e_onmousedown);
 		// west handlebar
 		let w = document.createElement('div');
-		w.className = 'widget-handle widget-west-handle';
+		w.className = 'widget-handle widget-west-handle widget-handle-on';
 		w.addEventListener('mousedown', w_onmousedown);
 		// north handlebar
 		let n = document.createElement('div');
-		n.className = 'widget-handle widget-north-handle';
+		n.className = 'widget-handle widget-north-handle widget-handle-on';
 		n.addEventListener('mousedown', n_onmousedown);
 		// south handlebar
 		let s = document.createElement('div');
-		s.className = 'widget-handle widget-south-handle';
+		s.className = 'widget-handle widget-south-handle widget-handle-on';
 		s.addEventListener('mousedown', s_onmousedown);
 		// content
 		let c = document.createElement('div');
